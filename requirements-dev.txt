@@ -1,0 +1,7 @@
+-r requirements.txt
+isort
+black
+pytest
+pytest-django
+pytest-asyncio
+
