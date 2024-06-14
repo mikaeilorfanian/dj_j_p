@@ -16,9 +16,6 @@ class RunResult(Enum):
 
 
 async def run_one_job(pk) -> RunResult:
-    if not pk:
-        return RunResult.NOT_RAN
-
     res = await JobDBModel.aupdate_new_to_in_progress_by_id(pk)
     if not res:
         return RunResult.NOT_RAN
@@ -32,7 +29,6 @@ async def run_one_job(pk) -> RunResult:
         return RunResult.FAIL
 
     await JobDBModel.aupdate_in_progress_to_done_by_id(pk)
-
     return RunResult.SUCCESS
 
 
@@ -46,7 +42,21 @@ def exit_due_to_timeout(start_dt: dt, timeout: int) -> bool:
     return False
 
 
+sleep_time_outer_loop = 0.1
+
+
+def calculate_sleep_time_inner_loop(num_jobs_running):
+    if num_jobs_running > 10:
+        sleep_time_inner_loop = 1
+    else:
+        sleep_time_inner_loop = 0.001
+
+    return sleep_time_inner_loop
+
+
 async def run_num_jobs(num_jobs: int, timeout: int = 0):
+    if not isinstance(timeout, int):
+        raise ValueError("`timeout` should an `int`")
     start = timezone.now()
     num_jobs_ran = 0
 
@@ -81,12 +91,12 @@ async def run_num_jobs(num_jobs: int, timeout: int = 0):
                         num_jobs_ran += 1
                     done_tasks += 1
                     break
-            if done_index:
+            if done_index is not None:
                 tasks.pop(done_index)
                 continue
-            if done_tasks >= len(tasks):
+            if len(tasks) == 0:
                 break
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(calculate_sleep_time_inner_loop(num_jobs_to_run))
 
         if exit_due_to_timeout(start, timeout):
             return
@@ -94,4 +104,4 @@ async def run_num_jobs(num_jobs: int, timeout: int = 0):
         if num_jobs_ran >= num_jobs:
             break
 
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(sleep_time_outer_loop)

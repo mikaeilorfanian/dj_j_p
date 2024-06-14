@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from django.core.handlers.asgi import asyncio
 from django_async_job_pipelines.job import BaseJob
 
 
@@ -14,6 +15,11 @@ class JobForTests(BaseTestJob):
 
 class JobMissingRunMethod(BaseJob):
     pass
+
+
+class JobWithSleep(BaseTestJob):
+    async def run(self):
+        await asyncio.sleep(0.1)
 
 
 class JobWithInputs(BaseJob):
