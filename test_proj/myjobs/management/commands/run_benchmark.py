@@ -1,7 +1,8 @@
+import time
+
 from asgiref.sync import async_to_sync
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
-from django.utils import timezone
 from django_async_job_pipelines.job import abulk_create_new
 from django_async_job_pipelines.models import JobDBModel
 from django_async_job_pipelines.runner import run_num_jobs, run_one_job
@@ -57,12 +58,12 @@ class Command(BaseCommand):
         else:
             job_klass = JobForTests
 
-        start = timezone.now()
+        start = time.perf_counter()
         fail_jobs = [JobMissingRunMethod() for _ in range(fail)]
         async_to_sync(abulk_create_new)(fail_jobs)
         jobs = [job_klass() for _ in range(create - fail)]
         async_to_sync(abulk_create_new)(jobs)
-        duration = (timezone.now() - start).total_seconds()
+        duration = time.perf_counter() - start
         self.stdout.write(
             self.style.SUCCESS(
                 f"Created {create-fail} regular jobs and {fail} failing jobs in {duration} seconds."
@@ -71,9 +72,9 @@ class Command(BaseCommand):
 
         assert JobDBModel.new_jobs_count() == create
 
-        start = timezone.now()
+        start = time.perf_counter()
         async_to_sync(run_num_jobs)(consume)
-        duration = (timezone.now() - start).total_seconds()
+        duration = time.perf_counter() - start
         self.stdout.write(
             self.style.SUCCESS(
                 f"Processed {consume} {job_klass.__name__} jobs in {duration} seconds."
