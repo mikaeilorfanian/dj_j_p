@@ -17,6 +17,33 @@ class TestGetOneNewJob:
         assert res in (new_job.pk, new_job2.pk)
 
 
+class TestAsyncGetOneNewJob:
+    def test_one_new_job_in_db(self, new_job, db):
+        res = async_to_sync(JobDBModel.aget_new_jobs_for_processing)(10)
+        assert len(res) == 1
+        assert res[0] == new_job.pk
+
+        res = async_to_sync(JobDBModel.aget_new_jobs_for_processing)(1)
+        assert len(res) == 1
+        assert res[0] == new_job.pk
+
+    def test_no_new_job_in_db(self, db):
+        res = async_to_sync(JobDBModel.aget_new_jobs_for_processing)(10)
+        assert not res
+
+        res = async_to_sync(JobDBModel.aget_new_jobs_for_processing)(1)
+        assert not res
+
+    def test_multiple_new_jobs_in_db(self, new_job, new_job2, db):
+        res = async_to_sync(JobDBModel.aget_new_jobs_for_processing)(10)
+        assert len(res) == 2
+        assert res[0] in (new_job.pk, new_job2.pk)
+        assert res[1] in (new_job.pk, new_job2.pk)
+
+        res = async_to_sync(JobDBModel.aget_new_jobs_for_processing)(1)
+        assert len(res) == 1
+
+
 class TestUpdateNewJobToInProgress:
     def test_new_job_exists_in_db(self, new_job):
         res = async_to_sync(JobDBModel.aupdate_new_to_in_progress_by_id)(new_job.pk)

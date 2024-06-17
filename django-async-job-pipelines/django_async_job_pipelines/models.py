@@ -1,3 +1,4 @@
+import asyncio
 import inspect
 from dataclasses import asdict
 from typing import Iterable, Optional
@@ -74,6 +75,41 @@ class JobDBModel(models.Model):
         if not res:
             return []
         return list(res)
+
+    @classmethod
+    async def aget_job_for_processing(cls) -> int:
+        """
+        Picks one job which is in `new` status. Updates its status to `in progress`.
+        Returns the job.
+        If it cannot pick a job and update, it blocks until it finds one.
+        """
+        while True:
+            found_new: bool = False
+            pk: tuple[int]
+            async for pk in cls.objects.filter(status=cls.JobStatus.NEW).values_list(
+                "pk"
+            ):
+                found_new = True
+                res = await cls.objects.filter(
+                    pk=pk[0], status=cls.JobStatus.NEW
+                ).aupdate(status=cls.JobStatus.IN_PROGRESS)
+                if not res:
+                    continue
+                else:
+                    return pk[0]
+            if not found_new:
+                await asyncio.sleep(0.1)
+
+    @classmethod
+    async def aget_new_jobs_for_processing(cls, limit: int) -> list[int]:
+        if limit == 0:
+            raise ValueError("Limit for getting new jobs must be greater than zero!")
+        return [
+            res[0]
+            async for res in cls.objects.filter(status=cls.JobStatus.NEW).values_list(
+                "pk"
+            )[:limit]
+        ]
 
     @classmethod
     async def aget_by_id(cls, _id: int) -> BaseJob:

@@ -24,10 +24,12 @@ For now works only with postgres and psycopg3. Does it work with mysql and which
 For use with sqlite3 you should run the sync version.
 
 # Timeout
+Useful for scenarios when you're testing and you want your test to include invoking the jobs runner.
 It checks if roughly `timeout` seconds have passed since the start of command invocation.  
 It won't exit early if there are any tasks in progress. It doesn't calcel pending tasks.
 
 # Number of Jobs to Run
+Useful for benchmarking. It's hard to know what number of workers is ideal for your scenario. That's why we have a built-in Django command that can create any number of jobs you want, run them, output the duration it took to run them, and assert that all have run.
 `num_jobs_to_consume` runs only some number of jobs. This counts jobs which were processed successfully or failed.
 
 # Create New Job

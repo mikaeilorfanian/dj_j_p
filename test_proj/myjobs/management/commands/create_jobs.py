@@ -7,8 +7,13 @@ from myjobs.jobs import JobForTests, JobMissingRunMethod, JobWithSleep
 
 
 class Command(BaseCommand):
-    def handle(self, *args, **kwargs):
-        num_jobs_to_create = 100
-        async_to_sync(abulk_create_new)(
-            [JobForTests() for _ in range(num_jobs_to_create)]
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "create",
+            default=10,
+            type=int,
         )
+
+    def handle(self, *args, **kwargs):
+        to_create = kwargs["create"]
+        async_to_sync(abulk_create_new)([JobForTests() for _ in range(to_create)])
