@@ -7,7 +7,8 @@ from myjobs.jobs import JobForTests, JobMissingRunMethod
 
 
 class TestRunOneJobFunction:
-    def test_new_job_exists(self, new_job):
+    # TODO this can be deleted
+    def test_new_job_gets_processed_successfully(self, new_job):
         assert JobDBModel.new_jobs_count() == 1
 
         async_to_sync(run_one_job)(new_job.pk)
@@ -17,7 +18,7 @@ class TestRunOneJobFunction:
 
         assert not JobDBModel.get(new_job.pk).error
 
-    def test_new_job_missing_run_method(self, new_job_missing_run_method):
+    def test_new_job_processing_fails(self, new_job_missing_run_method):
         assert JobDBModel.new_jobs_count() == 1
 
         async_to_sync(run_one_job)(new_job_missing_run_method.pk)
@@ -32,7 +33,7 @@ class TestRunOneJobFunction:
         )
 
 
-class TestRunningVariableNumberOfJobs:
+class TestRunningMoreThanOneJob:
     def test_new_job_exists(self, new_job):
         assert JobDBModel.new_jobs_count() == 1
 

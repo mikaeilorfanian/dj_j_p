@@ -78,7 +78,7 @@ class TestAsyncCreateNewJobFunction:
         job = JobDBModel.get(new_job.pk)
         assert job.status == JobDBModel.JobStatus.NEW
 
-    def test_job_with_custom_asdict_method_of_inputs_class_and_ouputs_class(self, db):
+    def test_job_with_custom_asdict_methods_of_inputs_class_and_ouputs_class(self, db):
         j = JobWithCustomAsdict.create(
             JobWithCustomAsdict.Inputs(id=2), JobWithCustomAsdict.Outputs(id=1)
         )
