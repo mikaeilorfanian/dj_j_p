@@ -1,3 +1,6 @@
+import asyncio
+
+import pytest
 from asgiref.sync import async_to_sync
 from django_async_job_pipelines.models import JobDBModel
 
@@ -42,6 +45,23 @@ class TestAsyncGetOneNewJob:
 
         res = async_to_sync(JobDBModel.aget_new_jobs_for_processing)(1)
         assert len(res) == 1
+
+    def test_get_one_job_using_async_method(self, new_job):
+        res = async_to_sync(JobDBModel.aget_job_for_processing)()
+        assert res
+
+    async def test_get_one_job_async_excluding_one_job_class(
+        self, new_job, new_job_missing_run_method
+    ):
+        with pytest.raises(TimeoutError):
+            async with asyncio.timeout(1):
+                await JobDBModel.aget_job_for_processing(exclude=[new_job.name])
+
+        with pytest.raises(TimeoutError):
+            async with asyncio.timeout(1):
+                await JobDBModel.aget_job_for_processing(
+                    exclude=[new_job.name, new_job_missing_run_method.name]
+                )
 
 
 class TestUpdateNewJobToInProgress:

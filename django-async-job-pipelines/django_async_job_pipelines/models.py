@@ -1,5 +1,7 @@
 import asyncio
 import inspect
+import logging
+import os
 from dataclasses import asdict
 from typing import Iterable, Optional
 
@@ -9,6 +11,15 @@ from django.utils.module_loading import import_module
 
 from .job import BaseJob
 from .registry import job_registery
+
+
+def logs_filename():
+    return f"{os.getgid()}_job_runner.log"
+
+
+logger = logging.getLogger(__name__)
+FORMAT = "%(asctime)s %(process)d %(taskName)s %(filename)s:%(funcName)s:%(lineno)d %(message)s"
+logging.basicConfig(format=FORMAT, filename=logs_filename(), level=logging.DEBUG)
 
 
 class JobDBModel(models.Model):
@@ -77,7 +88,7 @@ class JobDBModel(models.Model):
         return list(res)
 
     @classmethod
-    async def aget_job_for_processing(cls) -> int:
+    async def aget_job_for_processing(cls, exclude: Optional[list[str]] = None) -> int:
         """
         Picks one job which is in `new` status. Updates its status to `in progress`.
         Returns the job.
@@ -86,19 +97,39 @@ class JobDBModel(models.Model):
         while True:
             found_new: bool = False
             pk: tuple[int]
-            async for pk in cls.objects.filter(status=cls.JobStatus.NEW).values_list(
-                "pk"
-            ):
-                found_new = True
-                res = await cls.objects.filter(
-                    pk=pk[0], status=cls.JobStatus.NEW
-                ).aupdate(status=cls.JobStatus.IN_PROGRESS)
-                if not res:
-                    continue
-                else:
-                    return pk[0]
-            if not found_new:
-                await asyncio.sleep(0.1)
+            if not exclude:
+                async for pk in cls.objects.filter(
+                    status=cls.JobStatus.NEW
+                ).values_list("pk"):
+                    found_new = True
+                    res = await cls.objects.filter(
+                        pk=pk[0], status=cls.JobStatus.NEW
+                    ).aupdate(status=cls.JobStatus.IN_PROGRESS)
+                    if not res:
+                        continue
+                    else:
+                        return pk[0]
+                if not found_new:
+                    await asyncio.sleep(0.1)
+            else:
+                logger.info(f"Fetching from db excluding {exclude} jobs")
+                async for pk in (
+                    cls.objects.filter(status=cls.JobStatus.NEW)
+                    .exclude(name__in=exclude)
+                    .values_list("pk")
+                ):
+                    found_new = True
+                    res = (
+                        await cls.objects.filter(pk=pk[0], status=cls.JobStatus.NEW)
+                        .exclude(name__in=exclude)
+                        .aupdate(status=cls.JobStatus.IN_PROGRESS)
+                    )
+                    if not res:
+                        continue
+                    else:
+                        return pk[0]
+                if not found_new:
+                    await asyncio.sleep(0.1)
 
     @classmethod
     async def aget_new_jobs_for_processing(cls, limit: int) -> list[int]:

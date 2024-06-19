@@ -35,6 +35,7 @@ class Runner:
     total_jobs_enqueued: int = 0
     total_jobs_processed: int = 0
     job_queue: Optional[asyncio.Queue] = None
+    exclude_jobs: Optional[list[str]] = None
 
     def __post_init__(self):
         """
@@ -65,27 +66,31 @@ class Runner:
                     return
             logger.info(f"Total jobs enqueued {self.total_jobs_enqueued}")
             logger.info("Going to get job for processing")
+
+            import pdb
+
+            pdb.set_trace()
             try:
                 async with asyncio.timeout(0.2):
-                    pk: int = await JobDBModel.aget_job_for_processing()
+                    if self.exclude_jobs:
+                        pk: int = await JobDBModel.aget_job_for_processing(
+                            exclude=self.exclude_jobs
+                        )
+                    else:
+                        pk: int = await JobDBModel.aget_job_for_processing()
             except TimeoutError:
                 logger.info("Getting jobs for processing timed out")
                 continue
-            # pks: list[int] = await JobDBModel.aget_new_jobs_for_processing(limit=1)
-            # if not pks:
-            #     sleep_seconds = 0.1
-            #     logger.info(f"Got no pks so going to sleep {sleep_seconds} seconds.")
-            #     await asyncio.sleep(sleep_seconds)
-            #     continue
-            # for pk in pks:
+
             if not pk:
                 continue
+
             assert self.job_queue
             logger.info(f"Waiting to enqueue job with pk {pk}")
             await self.job_queue.put(pk)
             self.total_jobs_enqueued += 1
             logger.info(
-                f"Added {pk} to job queue, total jobs enqueued: {self.total_jobs_enqueued}"
+                f"Added job with {pk} to job queue, total jobs enqueued: {self.total_jobs_enqueued}"
             )
 
     async def worker(self):
@@ -109,12 +114,6 @@ class Runner:
                 continue
 
             logger.info(f"Got pk {pk} to process.")
-            # res = await JobDBModel.aupdate_new_to_in_progress_by_id(pk)
-            # if not res:
-            #     logger.info(f"Could not update to 'in progress' job with pk {pk}")
-            #     self.job_queue.task_done()
-            #     continue
-            # logger.info(f"Updated to 'in progress' job with pk {pk}.")
 
             try:
                 job = await JobDBModel.aget_by_id(pk)
@@ -172,14 +171,17 @@ async def run_num_jobs(
     max_num_workers,
     num_jobs: int = 0,
     timeout: int = 0,
+    skip_jobs: Optional[list[str]] = None,
 ):
     logger.info("Job runner started.")
     if not isinstance(timeout, int):
         raise ValueError("`timeout` should an `int`")
 
+    # DO NEXT pass excluded jobs to the runner
     runner = Runner(
         max_num_workers=max_num_workers,
         num_jobs_to_run=num_jobs,
         timeout_seconds=timeout,
+        exclude_jobs=skip_jobs,
     )
     await runner.run()

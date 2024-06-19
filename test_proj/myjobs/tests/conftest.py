@@ -3,7 +3,7 @@ from asgiref.sync import async_to_sync
 from django_async_job_pipelines.job import acreate_new
 from django_async_job_pipelines.models import JobDBModel
 
-from myjobs.jobs import JobForTests, JobMissingRunMethod
+from myjobs.jobs import JobForTests, JobMissingRunMethod, JobWithCustomAsdict
 
 
 @pytest.fixture
@@ -27,4 +27,10 @@ def job_in_progress(new_job):
 @pytest.fixture
 def new_job_missing_run_method(db):
     job = JobMissingRunMethod()
+    return async_to_sync(acreate_new)(job)
+
+
+@pytest.fixture
+def job_with_inputs_outputs(db):
+    job = JobWithCustomAsdict(JobWithCustomAsdict.Inputs(id=1))
     return async_to_sync(acreate_new)(job)

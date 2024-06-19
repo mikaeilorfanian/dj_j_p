@@ -2,6 +2,7 @@ import pytest
 from asgiref.sync import async_to_sync
 from django_async_job_pipelines.job import acreate_new
 from django_async_job_pipelines.models import JobDBModel
+
 from myjobs.jobs import (
     JobForTests,
     JobWithCustomAsdict,
@@ -11,8 +12,7 @@ from myjobs.jobs import (
 
 
 class TestAsyncCreateNewJobFunction:
-    def test_job_with_no_inputs_and_outputs(self, db, new_job):
-
+    def test_job_with_no_inputs_and_outputs_classes(self, db, new_job):
         assert JobDBModel.new_jobs_count() == 1
         job = async_to_sync(JobDBModel.aget_by_id)(new_job.pk)
         assert job.is_new
@@ -23,14 +23,14 @@ class TestAsyncCreateNewJobFunction:
         job = JobDBModel.get(new_job.pk)
         assert job.status == JobDBModel.JobStatus.NEW
 
-    def test_job_with_inputs_missing_inputs(self, db):
+    def test_job_with_inputs_class_missing_inputs_data(self, db):
         with pytest.raises(ValueError):
             j = JobWithInputs()
             async_to_sync(acreate_new)(j)
 
         assert JobDBModel.new_jobs_count() == 0
 
-    def test_job_with_inputs(self, db):
+    def test_job_with_inputs_class_and_inputs_data(self, db):
         j = JobWithInputs.create(inputs=JobWithInputs.Inputs(id=1))
         new_job = async_to_sync(acreate_new)(j)
 
@@ -44,7 +44,7 @@ class TestAsyncCreateNewJobFunction:
         job = JobDBModel.get(new_job.pk)
         assert job.status == JobDBModel.JobStatus.NEW
 
-    def test_job_with_outputs_missing_outputs(self, db):
+    def test_job_with_outputs_class_missing_outputs_data(self, db):
         j = JobWithInputsAndOutputs.create(inputs=JobWithInputsAndOutputs.Inputs(id=1))
         new_job = async_to_sync(acreate_new)(j)
 
@@ -59,7 +59,7 @@ class TestAsyncCreateNewJobFunction:
         job = JobDBModel.get(new_job.pk)
         assert job.status == JobDBModel.JobStatus.NEW
 
-    def test_job_with_inputs_and_outputs(self, db):
+    def test_job_with_inputs_class_and_outputs_class(self, db):
         j = JobWithInputsAndOutputs.create(
             inputs=JobWithInputsAndOutputs.Inputs(id=1),
             outputs=JobWithInputsAndOutputs.Outputs(id=1),
@@ -78,10 +78,7 @@ class TestAsyncCreateNewJobFunction:
         job = JobDBModel.get(new_job.pk)
         assert job.status == JobDBModel.JobStatus.NEW
 
-    def test_job_with_previous_job(self):
-        pass
-
-    def test_job_with_custom_inputs_and_ouputs_asdict_method(self, db):
+    def test_job_with_custom_asdict_method_of_inputs_class_and_ouputs_class(self, db):
         j = JobWithCustomAsdict.create(
             JobWithCustomAsdict.Inputs(id=2), JobWithCustomAsdict.Outputs(id=1)
         )

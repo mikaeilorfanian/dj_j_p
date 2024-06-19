@@ -2,7 +2,7 @@
 
 # Quick start
 
-1. Add "polls" to your INSTALLED_APPS setting like this::
+1. Add "django_async_job_pipelines" to your INSTALLED_APPS setting like this::
 
     INSTALLED_APPS = [
         ...,
@@ -13,11 +13,11 @@
 
     path("jobs/", include("django_async_job_pipelines.urls")),
 
-3. Run ``python manage.py migrate`` to create the models.
+3. Run `python manage.py migrate` to create the models.
 
 4. Start the development server and visit the admin to create a poll.
 
-5. Visit the ``/jobs/`` URL to participate in the poll.
+5. Visit the `/jobs/` URL to participate in the poll.
 
 # Compatibility
 For now works only with postgres and psycopg3. Does it work with mysql and which driver library?
@@ -35,4 +35,11 @@ Useful for benchmarking. It's hard to know what number of workers is ideal for y
 # Create New Job
 
 # Create Jobs in Bulk for Higher Performance
+
+# Excluding Jobs
+You can pass an optional list of job names (remember job name is the name of the class inheriting from `BaseJob` class) to the `consume_jobs` Django command so that you consumer skips them.
+Note that this list of names is not validated.
+
+
+# TODO remove runner 1 and its related code and tests
 

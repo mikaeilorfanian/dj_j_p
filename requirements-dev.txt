@@ -4,4 +4,4 @@ black
 pytest
 pytest-django
 pytest-asyncio
-
+pdbpp

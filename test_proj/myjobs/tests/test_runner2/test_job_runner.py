@@ -1,4 +1,7 @@
-from asgiref.sync import async_to_sync
+import asyncio
+
+import pytest
+from asgiref.sync import async_to_sync, sync_to_async
 from django_async_job_pipelines.job import abulk_create_new, acreate_new
 from django_async_job_pipelines.models import JobDBModel
 from django_async_job_pipelines.runner2 import run_num_jobs
@@ -108,3 +111,29 @@ class TestRunningVariableNumberOfJobs:
 
         assert JobDBModel.new_jobs_count() == total_jobs - num_to_consume
         assert JobDBModel.failed_jobs_count() == num_to_consume
+
+
+class TestRunningJobsIndefinitely:
+    async def test_consume_until_forced_to_timeout(self, db):
+        total_num_jobs = 100
+        await abulk_create_new([JobForTests() for _ in range(total_num_jobs)])
+        await asyncio.sleep(0.1)
+        assert await sync_to_async(JobDBModel.new_jobs_count)() == total_num_jobs
+
+        with pytest.raises(TimeoutError):
+            async with asyncio.timeout(2):
+                await run_num_jobs(max_num_workers=10)
+
+        assert await sync_to_async(JobDBModel.done_jobs_count)() > 0
+        # TODO check what the number of DONE jobs actually is
+
+
+class TestJobRunnerPersistsOutputToDb:
+    def test_job_with_outputs_class_but_output_not_set(self):
+        pass
+
+    def test_output_set_for_job_with_output_class(self):
+        pass
+
+    def job_without_outputs_class_tries_to_set_its_outputs(self, db):
+        pass
