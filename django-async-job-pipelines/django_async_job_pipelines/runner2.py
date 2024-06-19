@@ -69,7 +69,6 @@ class Runner:
 
             import pdb
 
-            pdb.set_trace()
             try:
                 async with asyncio.timeout(0.2):
                     if self.exclude_jobs:
@@ -90,7 +89,7 @@ class Runner:
             await self.job_queue.put(pk)
             self.total_jobs_enqueued += 1
             logger.info(
-                f"Added job with {pk} to job queue, total jobs enqueued: {self.total_jobs_enqueued}"
+                f"Added job with pk {pk} to job queue, total jobs enqueued: {self.total_jobs_enqueued}"
             )
 
     async def worker(self):
@@ -127,6 +126,9 @@ class Runner:
             try:
                 logger.info(f"Running job with pk {pk}")
                 await job.run()
+                import pdb
+
+                output_serialized = job.outputs_asdict()
                 logger.info(f"Successfully ran job with pk {pk}")
             except Exception as e:
                 logger.info(f"Failed to run job with pk {pk}")
@@ -137,7 +139,7 @@ class Runner:
                 self.total_jobs_processed += 1
                 continue
 
-            await JobDBModel.aupdate_in_progress_to_done_by_id(pk)
+            await JobDBModel.aupdate_in_progress_to_done_by_id(pk, output_serialized)
             logger.info(f"Updated to 'done' job with pk {pk}")
             self.job_queue.task_done()
             self.total_jobs_processed += 1

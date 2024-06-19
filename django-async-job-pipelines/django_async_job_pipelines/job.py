@@ -29,8 +29,8 @@ class BaseJob:
     @classmethod
     def create(
         cls,
-        inputs=None,
-        outputs=None,
+        inputs=Optional[dict | list],
+        outputs=Optional[dict | list],
         status: str = "",
     ) -> "BaseJob":  # TODO fix type hint, make it to work with user defined classes
         if hasattr(cls, "Inputs"):
@@ -42,6 +42,7 @@ class BaseJob:
         return cls(inputs=inputs, outputs=outputs, status=status)
 
     def inputs_asdict(self) -> dict:
+        # TODO rename this method to "serialize"
         if not self.inputs:
             return {}
 
@@ -56,6 +57,7 @@ class BaseJob:
         return asdict(self.inputs)
 
     def outputs_asdict(self) -> dict:
+        # TODO rename this method to "deserialize"
         if not self.outputs:
             return {}
 

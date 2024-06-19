@@ -172,10 +172,17 @@ class JobDBModel(models.Model):
         )
 
     @classmethod
-    async def aupdate_in_progress_to_done_by_id(cls, pk: int) -> int:
-        return await cls.objects.filter(
-            pk=pk, status=cls.JobStatus.IN_PROGRESS
-        ).aupdate(status=cls.JobStatus.DONE)
+    async def aupdate_in_progress_to_done_by_id(
+        cls, pk: int, outputs: Optional[dict | list] = None
+    ) -> int:
+        if not outputs:
+            return await cls.objects.filter(
+                pk=pk, status=cls.JobStatus.IN_PROGRESS
+            ).aupdate(status=cls.JobStatus.DONE)
+        else:
+            return await cls.objects.filter(
+                pk=pk, status=cls.JobStatus.IN_PROGRESS
+            ).aupdate(status=cls.JobStatus.DONE, outputs=outputs)
 
     @classmethod
     async def acreate_new_in_db(

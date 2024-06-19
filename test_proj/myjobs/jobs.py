@@ -43,6 +43,40 @@ class JobWithInputsAndOutputs(BaseJob):
 
 
 class JobWithCustomAsdict(BaseJob):
+    async def run(self):
+        pass
+
+    @dataclass
+    class Inputs:
+        id: int
+
+        def asdict(self):
+            return {"id": self.id}
+
+    @dataclass
+    class Outputs:
+        id: int
+
+        def asdict(self):
+            return {"id": self.id}
+
+
+class JobWithoutOutputClass(BaseJob):
+    async def run(self):
+        self.outputs = self.Outputs(id=20)
+
+    @dataclass
+    class Inputs:
+        id: int
+
+        def asdict(self):
+            return {"id": self.id}
+
+
+class JobProducingOutputs(BaseJob):
+    async def run(self):
+        self.outputs = self.Outputs(id=20)
+
     @dataclass
     class Inputs:
         id: int
