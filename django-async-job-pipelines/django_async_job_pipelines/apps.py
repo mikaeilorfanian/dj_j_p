@@ -15,7 +15,8 @@ class DjangoAsyncJobPipelinesConfig(AppConfig):
         If yes, then it checks all attributes in that `jobs` module to find subclasses of `BaseJob`.
         """
         from .job import BaseJob
-        from .registry import job_registery
+        from .pipeline import BasePipeline
+        from .registry import job_registery, pipeline_registery
 
         for (
             app
@@ -33,6 +34,31 @@ class DjangoAsyncJobPipelinesConfig(AppConfig):
                     ):  # assert `obj` is a class and not a `dict` or some other builtin
                         if issubclass(obj, BaseJob):
                             job_registery.add(
+                                obj.__name__, app.name
+                            )  # register subclasses of `BaseJob`
+            except ModuleNotFoundError:
+                pass
+
+        for (
+            app
+        ) in apps.get_app_configs():  # get all registered and collected Djang apps
+            try:  # try to get the `pipelines` module and ignore if it doesn't exist
+                pipelines_module = import_module(f"{app.name}.pipelines")
+                for obj in dir(
+                    pipelines_module
+                ):  # get all attributes (as string) of `jobs` module
+                    obj = getattr(
+                        pipelines_module, obj
+                    )  # turn string to the object itself
+                    if (
+                        obj is BasePipeline
+                    ):  # we don't want to register the `BasePipeline` class
+                        continue
+                    if (
+                        type(obj) is type
+                    ):  # assert `obj` is a class and not a `dict` or some other builtin
+                        if issubclass(obj, BasePipeline):
+                            pipeline_registery.add(
                                 obj.__name__, app.name
                             )  # register subclasses of `BaseJob`
             except ModuleNotFoundError:

@@ -222,3 +222,14 @@ class JobDBModel(models.Model):
     @classmethod
     def new_jobs_count(cls) -> int:
         return JobDBModel.objects.filter(status=JobDBModel.JobStatus.NEW).count()
+
+
+class Pipeline(models.Model):
+    class Status(models.TextChoices):
+        NEW = "NEW"
+        IN_PROGRESS = "IN_PROGRESS"
+        DONE = "DONE"
+        ERROR = "ERROR"
+
+    name = models.TextField(max_length=200)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.NEW)

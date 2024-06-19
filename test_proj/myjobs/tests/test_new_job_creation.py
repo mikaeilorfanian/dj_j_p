@@ -96,6 +96,21 @@ class TestAsyncCreateNewJobFunction:
         job = JobDBModel.get(new_job.pk)
         assert job.status == JobDBModel.JobStatus.NEW
 
+    def test_creating_a_job_class_which_doesnt_inherit_from_the_base_job_class(self):
+        class BadJob:
+            @classmethod
+            def create(cls):
+                return BadJob()
+
+            @property
+            def name(self):
+                return type(self).__name__
+
+        j = BadJob.create()
+
+        with pytest.raises(ValueError):
+            async_to_sync(acreate_new)(j)
+
 
 class TestSyncCreateNewJobFunction:
     # TODO fill this out

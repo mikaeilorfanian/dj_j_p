@@ -1,6 +1,8 @@
 from dataclasses import asdict, dataclass
 from typing import Optional
 
+from .registry import job_registery
+
 
 class BaseJob:
     name: Optional[str] = None
@@ -74,9 +76,18 @@ class BaseJob:
     async def run(self):
         raise NotImplementedError()
 
+    @property
+    def name(self) -> str:
+        return type(self).__name__
+
 
 async def acreate_new(job):
     from .models import JobDBModel
+
+    if job.name not in job_registery.job_class_to_name_map:
+        raise ValueError(
+            f'Job with name "{job.name}" was not found. It should be a subclass of the "BaseJob" class and located in a `jobs.py` of a registered Django app.'
+        )
 
     if hasattr(job, "Inputs") and not job.inputs:
         raise ValueError(
