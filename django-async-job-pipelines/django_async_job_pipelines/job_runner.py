@@ -179,7 +179,6 @@ async def run_num_jobs(
     if not isinstance(timeout, int):
         raise ValueError("`timeout` should an `int`")
 
-    # DO NEXT pass excluded jobs to the runner
     runner = Runner(
         max_num_workers=max_num_workers,
         num_jobs_to_run=num_jobs,

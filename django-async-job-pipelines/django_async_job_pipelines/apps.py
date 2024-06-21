@@ -46,7 +46,7 @@ class DjangoAsyncJobPipelinesConfig(AppConfig):
                 pipelines_module = import_module(f"{app.name}.pipelines")
                 for obj in dir(
                     pipelines_module
-                ):  # get all attributes (as string) of `jobs` module
+                ):  # get all attributes (as string) of `pipelines` module
                     obj = getattr(
                         pipelines_module, obj
                     )  # turn string to the object itself
@@ -60,6 +60,6 @@ class DjangoAsyncJobPipelinesConfig(AppConfig):
                         if issubclass(obj, BasePipeline):
                             pipeline_registery.add(
                                 obj.__name__, app.name
-                            )  # register subclasses of `BaseJob`
+                            )  # register subclasses of `BasePipeline`
             except ModuleNotFoundError:
                 pass

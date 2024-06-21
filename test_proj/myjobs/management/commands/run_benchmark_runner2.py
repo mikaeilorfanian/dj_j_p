@@ -4,8 +4,8 @@ from asgiref.sync import async_to_sync
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 from django_async_job_pipelines.job import abulk_create_new
+from django_async_job_pipelines.job_runner import run_num_jobs
 from django_async_job_pipelines.models import JobDBModel
-from django_async_job_pipelines.runner2 import run_num_jobs
 
 from myjobs.jobs import JobForTests, JobMissingRunMethod, JobWithSleep
 
