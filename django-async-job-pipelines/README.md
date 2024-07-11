@@ -55,3 +55,4 @@ In `Inputs` or `Outputs` classes of your job create a `asdict` method which take
 
 # TODO remove runner 1 and its related code and tests
 
+job.name should not be set by users!

@@ -10,7 +10,7 @@ class BaseTestJob(BaseJob):
 
 
 class JobForTests(BaseTestJob):
-    name = "test job"
+    pass
 
 
 class JobMissingRunMethod(BaseJob):
@@ -23,16 +23,12 @@ class JobWithSleep(BaseTestJob):
 
 
 class JobWithInputs(BaseJob):
-    name = "job with inputs"
-
     @dataclass
     class Inputs:
         id: int
 
 
 class JobWithInputsAndOutputs(BaseJob):
-    name = "job with inputs and outputs"
-
     @dataclass
     class Inputs:
         id: int

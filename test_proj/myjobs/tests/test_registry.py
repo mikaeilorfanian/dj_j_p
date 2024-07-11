@@ -4,7 +4,7 @@ from django_async_job_pipelines.registry import job_registery, pipeline_register
 NUM_BUILT_IN_JOBS = 1
 NUM_TEST_JOBS = 9
 NUM_BUILT_IN_PIPELINES = 0
-NUM_TEST_PIPELINES = 0
+NUM_TEST_PIPELINES = 4
 
 
 class TestJobRegistery:

@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from typing import Optional
 
 
 @dataclass
@@ -38,7 +37,7 @@ class PipelineRegistery:
         self.pipeline_class_to_name_map[class_name] = app_name
 
     def get_import_path_for_class_name(self, class_name: str) -> str:
-        return f"{self.pipeline_class_to_name_map[class_name]}.jobs"
+        return f"{self.pipeline_class_to_name_map[class_name]}.pipelines"
 
 
 pipeline_registery = PipelineRegistery()

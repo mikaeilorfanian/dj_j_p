@@ -1,17 +1,12 @@
 import asyncio
 import logging
 import os
-import time
 import traceback
-from dataclasses import Field, dataclass
-from datetime import datetime as dt
-from enum import Enum
+from dataclasses import dataclass
 from typing import Optional
 
-from asgiref.sync import sync_to_async
-from django.utils import timezone
-
-from django_async_job_pipelines.models import JobDBModel
+from django_async_job_pipelines.job import BaseJob
+from django_async_job_pipelines.models import JobDBModel, PipelineDBModel
 
 
 def logs_filename():
@@ -67,8 +62,6 @@ class Runner:
             logger.info(f"Total jobs enqueued {self.total_jobs_enqueued}")
             logger.info("Going to get job for processing")
 
-            import pdb
-
             try:
                 async with asyncio.timeout(0.2):
                     if self.exclude_jobs:
@@ -109,13 +102,15 @@ class Runner:
                 async with asyncio.timeout(0.2):
                     pk = await self.job_queue.get()
             except TimeoutError:
-                logger.info("Waiting to get job timed out")
+                logger.info("Timeout while waiting to get job")
                 continue
+
+            import pdb
 
             logger.info(f"Got pk {pk} to process.")
 
             try:
-                job = await JobDBModel.aget_by_id(pk)
+                job: BaseJob = await JobDBModel.aget_by_id(pk)
             except:
                 logger.exception(
                     f"Exception occured while getting job with pk {pk} from database."
@@ -126,10 +121,21 @@ class Runner:
             try:
                 logger.info(f"Running job with pk {pk}")
                 await job.run()
-                import pdb
-
+                if job.previous_job:  # this means this job is part of a pipeline
+                    next_job_inputs = job.next_job_inputs_asdict()
+                    assert job.db_model
+                    next_job_initialized: bool = await JobDBModel.ainit_next_job(
+                        job.db_model,
+                        next_job_inputs,
+                    )
                 output_serialized = job.outputs_asdict()
                 logger.info(f"Successfully ran job with pk {pk}")
+                await JobDBModel.aupdate_in_progress_to_done_by_id(
+                    pk, output_serialized
+                )
+                logger.info(f"Updated to 'done' job with pk {pk}")
+                self.job_queue.task_done()
+                self.total_jobs_processed += 1
             except Exception as e:
                 logger.info(f"Failed to run job with pk {pk}")
                 tb = traceback.format_exception(e)
@@ -137,12 +143,6 @@ class Runner:
                 logger.info(f"Marked job with pk {pk} as 'failed' in db.")
                 self.job_queue.task_done()
                 self.total_jobs_processed += 1
-                continue
-
-            await JobDBModel.aupdate_in_progress_to_done_by_id(pk, output_serialized)
-            logger.info(f"Updated to 'done' job with pk {pk}")
-            self.job_queue.task_done()
-            self.total_jobs_processed += 1
 
     async def run(self):
         if self.max_num_workers < 1:
