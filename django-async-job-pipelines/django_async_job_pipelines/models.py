@@ -229,7 +229,7 @@ class JobDBModel(models.Model):
     @classmethod
     async def abulk_create_new_in_db(
         cls,
-        jobs,
+        jobs: Iterable["BaseJob"],
     ) -> "JobDBModel":
         to_create = [
             cls(

@@ -1,5 +1,5 @@
 from dataclasses import asdict
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 from .registry import job_registery
 
@@ -126,7 +126,7 @@ async def acreate_new(job) -> "JobDBModel":
     return j
 
 
-async def abulk_create_new(jobs):
+async def abulk_create_new(jobs: Iterable[BaseJob]):
     from .models import JobDBModel
 
     for job in jobs:
