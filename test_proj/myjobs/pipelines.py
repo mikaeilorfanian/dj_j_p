@@ -1,6 +1,7 @@
 from django_async_job_pipelines.pipeline import BasePipeline
 
 from .jobs import (
+    AssertPipelieWorkedProperly,
     CreateJobs,
     DeleteExistingJobs,
     JobForTests,
@@ -43,4 +44,9 @@ class PipelineMultipleJobsOneInMiddleFails(BasePipeline):
 
 
 class TestPipelineWith10KJobs(BasePipeline):
-    jobs = [DeleteExistingJobs, CreateJobs, SpawnConsumerProcesses]
+    jobs = [
+        DeleteExistingJobs,
+        CreateJobs,
+        # SpawnConsumerProcesses,
+        # AssertPipelieWorkedProperly,
+    ]

@@ -211,6 +211,10 @@ class JobDBModel(models.Model):
             ).aupdate(status=cls.JobStatus.DONE, outputs=outputs)
 
     @classmethod
+    async def asave_job_outputs(cls, pk: int, job_outputs: dict):
+        await cls.objects.filter(pk=pk).aupdate(outputs=job_outputs)
+
+    @classmethod
     async def acreate_new_in_db(
         cls,
         job,
@@ -240,7 +244,7 @@ class JobDBModel(models.Model):
             )
             for j in jobs
         ]
-        await cls.objects.abulk_create(to_create)
+        await cls.objects.abulk_create(to_create, batch_size=10_000)
         # TODO do we want to chunk this `bulk_create`
 
     @classmethod
@@ -309,10 +313,10 @@ class PipelineDBModel(models.Model):
     @classmethod
     def create_new_in_db(
         cls,
-        pipeline,
+        pipeline: type,
     ) -> "PipelineDBModel":
         j = cls.objects.create(
-            name=type(pipeline).__name__,
+            name=pipeline.__name__,
             status=cls.Status.NEW,
         )
 

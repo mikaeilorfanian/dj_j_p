@@ -14,7 +14,7 @@ def logs_filename():
 
 
 logger = logging.getLogger(__name__)
-FORMAT = "%(asctime)s %(process)d %(taskName)s %(filename)s:%(funcName)s:%(lineno)d %(message)s"
+FORMAT = "%(asctime)s %(process)d %(levelname)s %(process)d %(taskName)s %(filename)s:%(funcName)s:%(lineno)d %(message)s"
 logging.basicConfig(format=FORMAT, filename=logs_filename(), level=logging.DEBUG)
 
 
@@ -141,6 +141,10 @@ class Runner:
                 tb = traceback.format_exception(e)
                 await JobDBModel.amark_as_failed(pk, ".".join(tb))
                 logger.info(f"Marked job with pk {pk} as 'failed' in db.")
+                if job.outputs_asdict():
+                    await JobDBModel.asave_job_outputs(
+                        pk=pk, job_outputs=job.outputs_asdict()
+                    )
                 self.job_queue.task_done()
                 self.total_jobs_processed += 1
 

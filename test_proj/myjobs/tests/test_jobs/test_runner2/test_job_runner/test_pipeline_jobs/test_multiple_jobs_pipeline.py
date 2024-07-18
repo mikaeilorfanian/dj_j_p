@@ -6,11 +6,10 @@ from django_async_job_pipelines.test_utils import run_jobs
 from myjobs.pipelines import PipelineMultipleJobsOneInMiddleFails
 
 
-@pytest.mark.run
 class TestAJobFails:
     def test_pipeline_halts_when_job_fails(self, db):
         job = async_to_sync(PipelineMultipleJobsOneInMiddleFails.trigger)()
-        run_jobs(run=3, timeout_seconds=1)
+        run_jobs(num_jobs_to_run=3, timeout_seconds=1)
 
         pipeline_job = JobDBModel.get(pk=job.pk)
         assert pipeline_job

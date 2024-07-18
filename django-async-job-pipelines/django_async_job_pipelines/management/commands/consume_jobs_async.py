@@ -13,6 +13,31 @@ class Command(BaseCommand):
             default=10,
             type=int,
         )
+        parser.add_argument(
+            "--exclude",
+            default="",
+            type=str,
+        )
+        parser.add_argument(
+            "--timeout",
+            default=10,
+            type=int,
+        )
 
     def handle(self, *args, **options):
-        asyncio.run(run_num_jobs(max_num_workers=int(options["max_num_workers"])))
+        timeout = options["timeout"]
+        if options["exclude"]:
+            jobs_to_skip = options["exclude"].split(",")
+            asyncio.run(
+                run_num_jobs(
+                    max_num_workers=int(options["max_num_workers"]),
+                    skip_jobs=jobs_to_skip,
+                    timeout=timeout,
+                ),
+            )
+        else:
+            asyncio.run(
+                run_num_jobs(
+                    max_num_workers=int(options["max_num_workers"]), timeout=timeout
+                )
+            )

@@ -44,7 +44,7 @@ class StartPipeline(BaseJob):
     @sync_to_async
     def run_db_queries_in_a_transaction(self, pipeline_klass):
         """
-        Creates a bunch of rows in db using a transaction.
+        Creates a bunch of rows as shown below in db using a transaction.
         1. Creates a pipeline row.
         2. Creates a job row for each job in the pipeline class
         3. Creates a pipeline job row to associate each job row with the pipeline row from step 1

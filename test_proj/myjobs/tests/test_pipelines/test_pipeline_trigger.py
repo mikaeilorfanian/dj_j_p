@@ -8,7 +8,6 @@ from myjobs.pipelines import (
     OneJobPipelineWithInputs,
     OneJobPipelineWithoutInputs,
     PipelineWithoutJobs,
-    TwoJobsPipeline,
 )
 
 

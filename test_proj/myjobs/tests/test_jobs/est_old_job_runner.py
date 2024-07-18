@@ -1,7 +1,9 @@
+# A test here creates 100 jobs and processes them so other tests end up with 100 "DONE" jobs
 from asgiref.sync import async_to_sync
 from django_async_job_pipelines.job import abulk_create_new
 from django_async_job_pipelines.models import JobDBModel
-from django_async_job_pipelines.old_runner import run_num_jobs, run_one_job
+from django_async_job_pipelines.old_runner import run_one_job
+from django_async_job_pipelines.test_utils import run_jobs
 
 from myjobs.jobs import JobForTests, JobMissingRunMethod
 
@@ -37,7 +39,7 @@ class TestRunningMoreThanOneJob:
     def test_new_job_exists(self, new_job):
         assert JobDBModel.new_jobs_count() == 1
 
-        async_to_sync(run_num_jobs)(1)
+        run_jobs(1)
 
         assert JobDBModel.new_jobs_count() == 0
         assert JobDBModel.done_jobs_count() == 1
@@ -47,7 +49,7 @@ class TestRunningMoreThanOneJob:
     def test_no_jobs_to_consume_so_it_times_out(self, db):
         assert JobDBModel.new_jobs_count() == 0
 
-        async_to_sync(run_num_jobs)(1, timeout=1)
+        run_jobs(1, timeout_seconds=1)
 
         assert JobDBModel.done_jobs_count() == 0
         assert JobDBModel.failed_jobs_count() == 0
@@ -55,7 +57,7 @@ class TestRunningMoreThanOneJob:
     def test_two_jobs_available_but_one_only_to_consume(self, new_job, new_job2):
         assert JobDBModel.new_jobs_count() == 2
 
-        async_to_sync(run_num_jobs)(1)
+        run_jobs(1)
 
         assert JobDBModel.done_jobs_count() == 1
         assert JobDBModel.new_jobs_count() == 1
@@ -63,7 +65,7 @@ class TestRunningMoreThanOneJob:
     def test_two_jobs_available_consume_both(self, new_job, new_job2):
         assert JobDBModel.new_jobs_count() == 2
 
-        async_to_sync(run_num_jobs)(2)
+        run_jobs(1)
 
         assert JobDBModel.new_jobs_count() == 0
         assert JobDBModel.done_jobs_count() == 2
@@ -74,7 +76,7 @@ class TestRunningMoreThanOneJob:
         async_to_sync(abulk_create_new)([JobForTests() for _ in range(total_num_jobs)])
         assert JobDBModel.new_jobs_count() == total_num_jobs
 
-        async_to_sync(run_num_jobs)(num_jobs_to_consume)
+        run_jobs(num_jobs_to_consume)
 
         assert JobDBModel.new_jobs_count() == total_num_jobs - num_jobs_to_consume
         assert JobDBModel.done_jobs_count() == num_jobs_to_consume
@@ -90,7 +92,7 @@ class TestRunningMoreThanOneJob:
         )
         assert JobDBModel.new_jobs_count() == num_successful_jobs + num_failing_jobs
 
-        async_to_sync(run_num_jobs)(num_failing_jobs + num_successful_jobs)
+        run_jobs(num_failing_jobs + num_successful_jobs)
 
         assert JobDBModel.new_jobs_count() == 0
         assert JobDBModel.done_jobs_count() == num_successful_jobs
@@ -104,7 +106,7 @@ class TestRunningMoreThanOneJob:
         )
         assert JobDBModel.new_jobs_count() == total_jobs
 
-        async_to_sync(run_num_jobs)(num_to_consume)
+        run_jobs(num_to_consume)
 
         assert JobDBModel.new_jobs_count() == total_jobs - num_to_consume
         assert JobDBModel.failed_jobs_count() == num_to_consume

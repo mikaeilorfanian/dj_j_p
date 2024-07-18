@@ -1,6 +1,7 @@
+import pytest
 from asgiref.sync import async_to_sync
-from django_async_job_pipelines.job_runner import run_num_jobs
 from django_async_job_pipelines.models import JobDBModel, PipelineDBModel
+from django_async_job_pipelines.test_utils import run_jobs
 
 from myjobs.jobs import JobWithInputs
 from myjobs.pipelines import (
@@ -10,12 +11,13 @@ from myjobs.pipelines import (
 )
 
 
+@pytest.mark.run
 class TestTriggeringThePipeline:
     def test_pipeline_with_one_job(self, db):
         job = async_to_sync(OneJobPipelineWithInputs.trigger)(
             inputs=JobWithInputs.Inputs(id=1)
         )
-        async_to_sync(run_num_jobs)(1)
+        run_jobs(1)
 
         pipeline_job = JobDBModel.get(pk=job.pk)
         assert pipeline_job
@@ -38,12 +40,13 @@ class TestTriggeringThePipeline:
 
         assert PipelineDBModel.objects.count() == 1
         pipeline = PipelineDBModel.objects.first()
+        assert pipeline.name == "OneJobPipelineWithInputs"
         assert pipeline.is_new
         assert len(pipeline.jobs.all()) == 1
 
     def test_pipeline_with_two_jobs(self, db):
         job = async_to_sync(TwoJobsPipeline.trigger)(inputs=JobWithInputs.Inputs(id=1))
-        async_to_sync(run_num_jobs)(1)
+        run_jobs(1)
 
         pipeline_job = JobDBModel.get(pk=job.pk)
         assert pipeline_job
@@ -67,6 +70,7 @@ class TestTriggeringThePipeline:
         assert PipelineDBModel.objects.count() == 1
         pipeline = PipelineDBModel.objects.first()
         assert pipeline.is_new
+        assert pipeline.name == "TwoJobsPipeline"
         assert len(pipeline.jobs.all()) == 2
 
     def test_pipeline_with_more_than_two_jobs_and_mix_of_jobs_with_inputs_and_without_and_failing_job(
@@ -75,7 +79,7 @@ class TestTriggeringThePipeline:
         job = async_to_sync(MultipleJobsPipeline.trigger)(
             inputs=JobWithInputs.Inputs(id=1)
         )
-        async_to_sync(run_num_jobs)(1)
+        run_jobs(1)
 
         pipeline_job = JobDBModel.get(pk=job.pk)
         assert pipeline_job
@@ -100,5 +104,6 @@ class TestTriggeringThePipeline:
 
         assert PipelineDBModel.objects.count() == 1
         pipeline = PipelineDBModel.objects.first()
+        assert pipeline.name == "MultipleJobsPipeline"
         assert pipeline.is_new
         assert len(pipeline.jobs.all()) == 4
