@@ -56,3 +56,7 @@ In `Inputs` or `Outputs` classes of your job create a `asdict` method which take
 # TODO remove runner 1 and its related code and tests
 
 job.name should not be set by users!
+
+
+# Optimization
+To cut the number of databbase queries for fetching rows which are ready to be processed by a factor of 10 set the X config option like below:

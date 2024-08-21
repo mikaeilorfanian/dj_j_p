@@ -47,6 +47,6 @@ class TestPipelineWith10KJobs(BasePipeline):
     jobs = [
         DeleteExistingJobs,
         CreateJobs,
-        # SpawnConsumerProcesses,
-        # AssertPipelieWorkedProperly,
+        SpawnConsumerProcesses,
+        AssertPipelieWorkedProperly,
     ]

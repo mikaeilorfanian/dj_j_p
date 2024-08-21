@@ -3,7 +3,8 @@ import logging
 import os
 from typing import Iterable, Optional
 
-from django.db import models
+from asgiref.sync import sync_to_async
+from django.db import models, transaction
 from django.utils.module_loading import import_module
 
 from .job import BaseJob
@@ -106,7 +107,21 @@ class JobDBModel(models.Model):
         return cls.objects.filter(status=cls.JobStatus.NOT_READY).all()
 
     @classmethod
-    async def aget_job_for_processing(cls, exclude: Optional[list[str]] = None) -> int:
+    def get_job_for_processing_and_mark_as_in_progress(cls) -> Optional["JobDBModel"]:
+        row = cls.objects.filter(status=cls.JobStatus.NEW).first()
+        if not row:
+            return
+        with transaction.atomic():
+            row.status = cls.JobStatus.IN_PROGRESS
+            row.save()
+        return row
+
+    @classmethod
+    async def aget_job_for_processing(
+        cls,
+        exclude: Optional[list[str]] = None,
+        wait_seconds_between_queries: float = 0.3,
+    ) -> int:
         """
         Picks one job which is in `new` status. Updates its status to `in progress`.
         Returns the job.
@@ -116,19 +131,28 @@ class JobDBModel(models.Model):
             found_new: bool = False
             pk: tuple[int]
             if not exclude:
-                async for pk in cls.objects.filter(
-                    status=cls.JobStatus.NEW
-                ).values_list("pk"):
-                    found_new = True
-                    res = await cls.objects.filter(
-                        pk=pk[0], status=cls.JobStatus.NEW
-                    ).aupdate(status=cls.JobStatus.IN_PROGRESS)
-                    if not res:
-                        continue
-                    else:
-                        return pk[0]
-                if not found_new:
-                    await asyncio.sleep(0.1)
+                job = await sync_to_async(
+                    cls.get_job_for_processing_and_mark_as_in_progress
+                )()
+                if not job:
+                    await asyncio.sleep(wait_seconds_between_queries)
+                else:
+                    return job.pk
+                # async for pk in cls.objects.filter(
+                #     status=cls.JobStatus.NEW
+                # ).values_list("pk"):
+                #     found_new = True
+                #     res = await cls.objects.filter(
+                #         pk=pk[0], status=cls.JobStatus.NEW
+                #     ).aupdate(status=cls.JobStatus.IN_PROGRESS)
+                #     if not res:
+                #         continue
+                #     else:
+                #         return pk[0]
+                # if not found_new:
+                #     await asyncio.sleep(
+                #         wait_seconds_between_queries
+                #     )  # TODO NEXT make this a config, benchmark with different values
             else:
                 logger.info(f"Fetching from db excluding {exclude} jobs")
                 async for pk in (
@@ -147,7 +171,7 @@ class JobDBModel(models.Model):
                     else:
                         return pk[0]
                 if not found_new:
-                    await asyncio.sleep(0.1)
+                    await asyncio.sleep(wait_seconds_between_queries)
 
     @classmethod
     async def aget_new_jobs_for_processing(cls, limit: int) -> list[int]:

@@ -113,14 +113,13 @@ class SpawnConsumerProcesses(BaseJob):
         num_workers_to_spawn: int
         worker_timeout: int
         num_done_jobs: int
+        num_processes_to_spawn: int
 
     async def run(self):
         cmd = f"python manage.py consume_jobs_async --max_num_workers={self.inputs.num_workers_to_spawn} --timeout={str(self.inputs.worker_timeout)}"
         worker_procs = list()
-        for _ in range(self.inputs.num_workers_to_spawn):
+        for _ in range(self.inputs.num_processes_to_spawn):
             worker_procs.append(await asyncio.create_subprocess_shell(cmd))
-
-        import pdb
 
         while True:
             new_jobs_count = await JobDBModel.objects.filter(
@@ -154,33 +153,36 @@ class CreateJobs(BaseJob):
         num_workers_to_spawn: int
         worker_timeout: int
         num_done_jobs: int
+        num_processes_to_spawn: int
 
     async def run(self):
-        num_jobs = self.inputs.num_jobs_to_create
-        batch_size = 10_000
-        if num_jobs > batch_size:
-            created_so_far = 0
-            while created_so_far < num_jobs:
-                batch_size = 10_000
-                if num_jobs - created_so_far < batch_size:
-                    batch_size = num_jobs - created_so_far
+        async with asyncio.TaskGroup() as tg:
+            num_jobs = self.inputs.num_jobs_to_create
+            batch_size = 10_000
+            if num_jobs > batch_size:
+                created_so_far = 0
+                while created_so_far < num_jobs:
+                    batch_size = 10_000
+                    if num_jobs - created_so_far < batch_size:
+                        batch_size = num_jobs - created_so_far
+                    jobs = [
+                        JobProducingOutputs(inputs=JobProducingOutputs.Inputs(id=i))
+                        for i in range(batch_size)
+                    ]
+                    tg.create_task(abulk_create_new(jobs))
+                    created_so_far += batch_size
+            else:
                 jobs = [
                     JobProducingOutputs(inputs=JobProducingOutputs.Inputs(id=i))
-                    for i in range(batch_size)
+                    for i in range(num_jobs)
                 ]
                 await abulk_create_new(jobs)
-                created_so_far += batch_size
-        else:
-            jobs = [
-                JobProducingOutputs(inputs=JobProducingOutputs.Inputs(id=i))
-                for i in range(num_jobs)
-            ]
-            await abulk_create_new(jobs)
 
         self.next_job_inputs = SpawnConsumerProcesses.Inputs(
             num_workers_to_spawn=self.inputs.num_workers_to_spawn,
             worker_timeout=self.inputs.worker_timeout,
             num_done_jobs=self.inputs.num_done_jobs,
+            num_processes_to_spawn=self.inputs.num_processes_to_spawn,
         )
 
 
@@ -191,6 +193,7 @@ class DeleteExistingJobs(BaseJob):
         num_workers_to_spawn: int
         worker_timeout: int
         num_done_jobs: int
+        num_processes_to_spawn: int
 
     async def run(self):
         self.next_job_inputs = CreateJobs.Inputs(
@@ -198,8 +201,5 @@ class DeleteExistingJobs(BaseJob):
             num_workers_to_spawn=self.inputs.num_workers_to_spawn,
             worker_timeout=self.inputs.worker_timeout,
             num_done_jobs=self.inputs.num_done_jobs,
+            num_processes_to_spawn=self.inputs.num_processes_to_spawn,
         )
-        # latest_job = JobDBModel.objects.order_by("-date_created").first()
-        # await JobDBModel.objects.exclude(pk=latest_job.pk).all().adelete()
-        # latest_pipeline = PipelineDBModel.objects.order_by("-date_created").first()
-        # await PipelineDBModel.objects.exclude(pk=latest_pipeline.pk).all().adelete()

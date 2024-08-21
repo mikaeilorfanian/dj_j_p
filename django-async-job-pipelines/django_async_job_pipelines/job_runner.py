@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from django_async_job_pipelines.job import BaseJob
-from django_async_job_pipelines.models import JobDBModel, PipelineDBModel
+from django_async_job_pipelines.models import JobDBModel
 
 
 def logs_filename():
@@ -22,6 +22,24 @@ class LimitReachedError(Exception):
     pass
 
 
+LOG_TO_FILE = False
+
+
+class Logger:
+    def info(self, msg):
+        if not LOG_TO_FILE:
+            return
+        logger.info(msg)
+
+    def exception(self, msg):
+        if not LOG_TO_FILE:
+            return
+        logger.exception(msg)
+
+
+_logger = Logger()
+
+
 @dataclass
 class Runner:
     max_num_workers: int
@@ -29,6 +47,9 @@ class Runner:
     num_jobs_to_run: int = 0
     total_jobs_enqueued: int = 0
     total_jobs_processed: int = 0
+    get_job_to_process_timeout: float = 0.4
+    get_job_from_queue_timeout: float = 0.1
+    wait_seconds_between_queries: float = 0.2
     job_queue: Optional[asyncio.Queue] = None
     exclude_jobs: Optional[list[str]] = None
 
@@ -38,6 +59,8 @@ class Runner:
         using `asyncio.Queue`.
         """
         self.job_queue = asyncio.Queue(maxsize=self.max_num_workers)
+        if self.get_job_to_process_timeout <= self.wait_seconds_between_queries:
+            self.get_job_to_process_timeout = self.wait_seconds_between_queries + 0.2
 
     async def add_jobs_to_queue(self):
         """
@@ -57,90 +80,91 @@ class Runner:
         while True:
             if self.num_jobs_to_run > 0:
                 if self.total_jobs_enqueued == self.num_jobs_to_run:
-                    logger.info("No more enqueues since enough have been enqueued")
+                    _logger.info("No more enqueues since enough have been enqueued")
                     return
-            logger.info(f"Total jobs enqueued {self.total_jobs_enqueued}")
-            logger.info("Going to get job for processing")
+            _logger.info(f"Total jobs enqueued {self.total_jobs_enqueued}")
+            _logger.info("Going to get job for processing")
 
             try:
-                async with asyncio.timeout(0.2):
+                async with asyncio.timeout(self.get_job_to_process_timeout):
                     if self.exclude_jobs:
                         pk: int = await JobDBModel.aget_job_for_processing(
-                            exclude=self.exclude_jobs
+                            exclude=self.exclude_jobs,
+                            wait_seconds_between_queries=self.wait_seconds_between_queries,
                         )
                     else:
-                        pk: int = await JobDBModel.aget_job_for_processing()
+                        pk: int = await JobDBModel.aget_job_for_processing(
+                            wait_seconds_between_queries=self.wait_seconds_between_queries
+                        )
             except TimeoutError:
-                logger.info("Getting jobs for processing timed out")
+                _logger.info("Getting jobs for processing timed out")
                 continue
 
             if not pk:
                 continue
 
             assert self.job_queue
-            logger.info(f"Waiting to enqueue job with pk {pk}")
+            _logger.info(f"Waiting to enqueue job with pk {pk}")
             await self.job_queue.put(pk)
             self.total_jobs_enqueued += 1
-            logger.info(
+            _logger.info(
                 f"Added job with pk {pk} to job queue, total jobs enqueued: {self.total_jobs_enqueued}"
             )
 
     async def worker(self):
-        logger.info("Worker started")
+        _logger.info("Worker started")
         assert self.job_queue
 
         while True:
             if self.num_jobs_to_run:
                 if self.total_jobs_processed == self.num_jobs_to_run:
-                    logger.info(
+                    _logger.info(
                         f"Limit reached, so exiting worker. Enqueued {self.total_jobs_enqueued}."
                     )
                     return
 
-            logger.info(f"Waiting to get a job")
+            _logger.info(f"Waiting to get a job")
             try:
-                async with asyncio.timeout(0.2):
+                async with asyncio.timeout(self.get_job_from_queue_timeout):
                     pk = await self.job_queue.get()
             except TimeoutError:
-                logger.info("Timeout while waiting to get job")
+                _logger.info("Timeout while waiting to get job")
                 continue
 
-            import pdb
-
-            logger.info(f"Got pk {pk} to process.")
+            _logger.info(f"Got pk {pk} to process.")
 
             try:
                 job: BaseJob = await JobDBModel.aget_by_id(pk)
             except:
-                logger.exception(
+                _logger.exception(
                     f"Exception occured while getting job with pk {pk} from database."
                 )
                 self.job_queue.task_done()
                 continue
 
             try:
-                logger.info(f"Running job with pk {pk}")
+                _logger.info(f"Running job with pk {pk}")
                 await job.run()
                 if job.previous_job:  # this means this job is part of a pipeline
                     next_job_inputs = job.next_job_inputs_asdict()
                     assert job.db_model
-                    next_job_initialized: bool = await JobDBModel.ainit_next_job(
+                    await JobDBModel.ainit_next_job(
                         job.db_model,
                         next_job_inputs,
                     )
                 output_serialized = job.outputs_asdict()
-                logger.info(f"Successfully ran job with pk {pk}")
+                _logger.info(f"Successfully ran job with pk {pk}")
                 await JobDBModel.aupdate_in_progress_to_done_by_id(
                     pk, output_serialized
                 )
-                logger.info(f"Updated to 'done' job with pk {pk}")
+                _logger.info(f"Updated to 'done' job with pk {pk}")
                 self.job_queue.task_done()
                 self.total_jobs_processed += 1
             except Exception as e:
-                logger.info(f"Failed to run job with pk {pk}")
+                _logger.info(f"Failed to run job with pk {pk}")
                 tb = traceback.format_exception(e)
                 await JobDBModel.amark_as_failed(pk, ".".join(tb))
-                logger.info(f"Marked job with pk {pk} as 'failed' in db.")
+                _logger.info(f"Marked job with pk {pk} as 'failed' in db.")
                 if job.outputs_asdict():
                     await JobDBModel.asave_job_outputs(
                         pk=pk, job_outputs=job.outputs_asdict()
@@ -168,7 +192,7 @@ class Runner:
             tasks.append(asyncio.create_task(self.add_jobs_to_queue()))
             for _ in range(self.max_num_workers):
                 task = asyncio.create_task(self.worker())
-                logger.info("Scheduled the creation of a worker")
+                _logger.info("Scheduled the creation of a worker")
                 tasks.append(task)
             await asyncio.gather(*tasks)
 
@@ -179,7 +203,7 @@ async def run_num_jobs(
     timeout: int = 0,
     skip_jobs: Optional[list[str]] = None,
 ):
-    logger.info("Job runner started.")
+    _logger.info("Job runner started.")
     if not isinstance(timeout, int):
         raise ValueError("`timeout` should an `int`")
 
