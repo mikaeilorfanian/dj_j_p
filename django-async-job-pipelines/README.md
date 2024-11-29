@@ -45,12 +45,11 @@ Note that this list of names is not validated.
 # Inputs and Outputs
 Your job class inheriting from `BaseJob` should have an `Inputs` class and/or `Outputs` class if you wish your job to take inputs and produce outputs which get written to the database. This is useful when you want to pass data to other jobs, for example when using a pipeline.
 These should always be deserializable to a Python `dict`. They cannot be a JSON `array` (Python `list`) or Python `set`.
-It's recommended to use a `dataclass` as your inputs and outputs classes. This way most of serialization and deserialization is taken care of by this library.
-If you want to use your own classes then you must provide a `inputs_serialize` method for the `Inputs` class and `outputs_serializer` method for the `Outputs` class.
+It's recommended to use a `dataclass` as your inputs and outputs classes. This way most of serialization and deserialization is taken care of by this package.
+In `Inputs` or `Outputs` classes of your job create a `asdict` method which takes no arguments.
 
 # Customize Inputs and Outputs Serialization
 # TODO how about customizing deserialization
-In `Inputs` or `Outputs` classes of your job create a `asdict` method which takes no arguments.
 
 
 # TODO remove runner 1 and its related code and tests
