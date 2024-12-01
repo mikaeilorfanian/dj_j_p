@@ -12,16 +12,19 @@ class Command(BaseCommand):
             "--max_num_workers",
             default=10,
             type=int,
+            help="Maximum number of `async` workers (not OS processes) which will be consuming jobs concurrently",
         )
         parser.add_argument(
             "--exclude",
             default="",
             type=str,
+            help="Comma separated job names (a job name is the name of the job `class`) to exclude from this job runner",
         )
         parser.add_argument(
             "--timeout",
-            default=10,
+            default=0,
             type=int,
+            help="This is used for testing purposes mainly. The jobs runner stops after this many seconds.",
         )
 
     def handle(self, *args, **options):
