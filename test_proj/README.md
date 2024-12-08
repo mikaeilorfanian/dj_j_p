@@ -17,22 +17,24 @@ This command does the following:
     - Spawns one or more OS processes each with one or more workers to process the newly created jobs
     - Asserts if the number of jobs processed equals the number of jobs created
 
-|No. Jobs to Create|No. Processes|No. Workers per Process|Time to Process (seconds)|
-|100|1|1|12|
-|100|2|2|12|
-|1000|1|1|16|
-|1000|2|2|16|
-|10000|1|1|62|
-|10000|4|4|35|
-|10000|10|10|45|
-|100000|4|4|765|
-|100000|10|10|765|
+| No. Jobs to Create | No. Processes | No. Workers per Process | Time to Process (seconds) |
+| ------------------ | ------------- | ----------------------- | ------------------------- | 
+| 100 | 1 | 1 | 12 |
+| 100| 2 | 2 | 12 |
+| 1000 | 1 | 1 | 16 |
+| 1000 | 2 | 2 | 16 |
+| 10000 | 1 | 1 | 62 |
+| 10000 | 4 | 4 | 35 |
+| 10000 | 10 | 10 | 45 |
+| 100000 | 4 | 4 | 765 |
+| 100000 | 10 | 10 | 765 |
 
 ## Worker Benchmarks
 The following table documents the performance of the `consume_jobs_async` Django command.
 This command consumer a number of jobs where each job just produces an integer output which gets persisted to the database.
 
 |No. Jobs to Consume|No. Processes|No. Workers per Process|Time to Process (seconds)|
+| ------------------ | ------------- | ----------------------- | ------------------------- | 
 |100|1|1|13|
 |100|2|2|13|
 |1000|1|1|20|

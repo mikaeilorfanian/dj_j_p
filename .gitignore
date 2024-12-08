@@ -3,4 +3,5 @@
 *.egg-info/
 .env
 *.log
+venv/
 
