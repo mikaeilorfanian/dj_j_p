@@ -3,10 +3,10 @@ This app tests the `django-async-job-pipelines` package hosted here.
 It also includes some benchmarks.
 
 # Benchmarks
-All benchmarks were ran on a WSL2 Ubuntu 24 on Windows 11 with Postgres running as a Docker container.
+All benchmarks were ran on a WSL2 Ubuntu 24 on Windows 11 with Postgres 15 running in a Docker container.
 My machine has 16GB of memory at 5200 MHz and a i9-13900H CPU.
-I also had these apps open while running these benchmarks: a dozen browser tabs, DBeaver, Slack, and Teams
-Memory usage peaked at 88% and CPU at 85% of 20 cores.
+I also had these apps open while running these benchmarks: a dozen browser tabs, DBeaver, Slack, and Teams.
+Memory usage peaked at 88% and CPU at 85% of 20 cores during the most demanding testing.
 
 ## Pipeline Benchmarks
 The following table documents the performance of the `run_big_test` Django command.

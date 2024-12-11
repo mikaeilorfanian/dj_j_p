@@ -15,7 +15,7 @@ This project is under development. The public APIs are solid and breaking change
 The project is very well tested and its performance is tuned and monitored closely.
 
 # Quick start
-1. Install using `pip`: `pip install X`
+1. Clone the repo. Go to the `django-async-job-pipelines` directory. Install using `pip`: `pip install .`
 2. Add "django_async_job_pipelines" to your INSTALLED_APPS setting like this::
 
     INSTALLED_APPS = [
@@ -120,6 +120,155 @@ This will create one `async` job runner which processes two jobs and exits. If t
 ### Excluding Jobs
 You can pass an optional comma-separated set of job names (the job name is the name of the class which inherits from the `BaseJob` class) to the `consume_jobs_async` Django command so the consumer skips them.
 Note that this list of names is not validated. 
+
+# Pipelines
+Define your pipelines in `pipelines.py` of your Django app's root directory (where `models.py` usually is placed).
+
+The example below is a partial implementation of the pipeline we use to benchmark and test this package. More on this later.
+
+For now, you can read the code in the `CreateJobs` job class to see how we create tens of thousands of jobs properly with good performance.
+
+```python
+from django_async_job_pipelines.job import BaseJob, abulk_create_new
+from django_async_job_pipelines.models import (
+    JobDBModel,
+    PipelineDBModel,
+    PipelineJobsDBModel,
+)
+
+# jobs in defined in `jobs.py`
+class DeleteExistingJobs(BaseJob):
+    @dataclass
+    class Inputs:
+        num_jobs_to_create: int
+        num_workers_to_spawn: int
+        worker_timeout: int
+        num_done_jobs: int
+        num_processes_to_spawn: int
+
+    async def delete_all_rows(self):
+        async with asyncio.TaskGroup() as tg:
+            tg.create_task(PipelineDBModel.objects.all().adelete())
+            tg.create_task(PipelineJobsDBModel.objects.all().adelete())
+            tg.create_task(JobDBModel.objects.all().adelete())
+
+
+    async def run(self):
+        async_to_sync(self.delete_all_rows)()
+
+        self.next_job_inputs = CreateJobs.Inputs(
+            num_jobs_to_create=self.inputs.num_jobs_to_create,
+            num_workers_to_spawn=self.inputs.num_workers_to_spawn,
+            worker_timeout=self.inputs.worker_timeout,
+            num_done_jobs=self.inputs.num_done_jobs,
+            num_processes_to_spawn=self.inputs.num_processes_to_spawn,
+        )
+
+class CreateJobs(BaseJob):
+    @dataclass
+    class Inputs:
+        num_jobs_to_create: int
+        num_workers_to_spawn: int
+        worker_timeout: int
+        num_done_jobs: int
+        num_processes_to_spawn: int
+
+    async def run(self):
+        async with asyncio.TaskGroup() as tg:
+            num_jobs = self.inputs.num_jobs_to_create
+            batch_size = 10_000
+            if num_jobs > batch_size:
+                created_so_far = 0
+                while created_so_far < num_jobs:
+                    batch_size = 10_000
+                    if num_jobs - created_so_far < batch_size:
+                        batch_size = num_jobs - created_so_far
+                    jobs = [
+                        JobProducingOutputs(inputs=JobProducingOutputs.Inputs(id=i))
+                        for i in range(batch_size)
+                    ]
+                    tg.create_task(abulk_create_new(jobs))
+                    created_so_far += batch_size
+            else:
+                jobs = [
+                    JobProducingOutputs(inputs=JobProducingOutputs.Inputs(id=i))
+                    for i in range(num_jobs)
+                ]
+                await abulk_create_new(jobs)
+
+        self.next_job_inputs = SpawnConsumerProcesses.Inputs(
+            num_workers_to_spawn=self.inputs.num_workers_to_spawn,
+            worker_timeout=self.inputs.worker_timeout,
+            num_done_jobs=self.inputs.num_done_jobs,
+            num_processes_to_spawn=self.inputs.num_processes_to_spawn,
+        )
+
+class AssertPipelieWorkedProperly(BaseJob):
+    @dataclass
+    class Inputs:
+        num_done_jobs: int
+
+    @dataclass
+    class Outputs:
+        actual_num_done_jobs: int
+
+    async def run(self):
+        actual_done_jobs = await JobDBModel.objects.filter(
+            status=JobDBModel.JobStatus.DONE
+        ).acount()
+        self.outputs = self.Outputs(actual_num_done_jobs=actual_done_jobs)
+        assert actual_done_jobs == self.inputs.num_done_jobs
+
+# pipeline defined in `pipelines.py`
+from django_async_job_pipelines.pipeline import BasePipeline
+
+# import your jobs (these come from the test project which is described later)
+from .jobs import (
+    AssertPipelieWorkedProperly,
+    CreateJobs,
+    DeleteExistingJobs,
+)
+
+# pipeline definition, must inherit from `BasePipeline`
+class TestPipelineWith10KJobs(BasePipeline):
+    jobs = [
+        DeleteExistingJobs,
+        CreateJobs,
+        SpawnConsumerProcesses,
+        AssertPipelieWorkedProperly,
+    ]
+
+# in another module trigger the pipeline
+# async way
+await TestPipelineWith10KJobs.trigger(
+    DeleteExistingJobs.Inputs(
+        num_jobs_to_create=num_jobs_to_process,
+        num_processes_to_spawn=num_processes,
+        num_workers_to_spawn=num_workers,
+        worker_timeout=timeout,
+        num_done_jobs=num_jobs_to_process + num_pipeline_jobs,
+    )
+)
+
+# sync way
+from asgiref.sync import async_to_sync
+
+async_to_sync(TestPipelineWith10KJobs.trigger)(
+    DeleteExistingJobs.Inputs(
+        num_jobs_to_create=num_jobs_to_process,
+        num_processes_to_spawn=num_processes,
+        num_workers_to_spawn=num_workers,
+        worker_timeout=timeout,
+        num_done_jobs=num_jobs_to_process + num_pipeline_jobs,
+    )
+)
+```
+Jobs run in the order you've defined in the in the `jobs` class attribute of your pipeline class.
+
+You have to pass the inputs to the first job to the `trigger` method. 
+The next job's inputs in a pipeline is set by setting `self.next_job_inputs`.
+
+Note that `CreateJobs.run` shows how you can create multiple next jobs.
 
 ### Benchmarking
 TODO

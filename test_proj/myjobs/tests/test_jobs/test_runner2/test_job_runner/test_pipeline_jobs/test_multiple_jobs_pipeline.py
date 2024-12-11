@@ -2,10 +2,10 @@ import pytest
 from asgiref.sync import async_to_sync
 from django_async_job_pipelines.models import JobDBModel, PipelineDBModel
 from django_async_job_pipelines.test_utils import run_jobs
-
 from myjobs.pipelines import PipelineMultipleJobsOneInMiddleFails
 
 
+@pytest.mark.django_db(transaction=True)
 class TestAJobFails:
     def test_pipeline_halts_when_job_fails(self, db):
         job = async_to_sync(PipelineMultipleJobsOneInMiddleFails.trigger)()

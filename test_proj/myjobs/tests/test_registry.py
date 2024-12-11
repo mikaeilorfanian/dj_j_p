@@ -1,8 +1,8 @@
 import pytest
 from django_async_job_pipelines.registry import job_registery, pipeline_registery
 
-NUM_BUILT_IN_JOBS = 1
-NUM_TEST_JOBS = 12
+NUM_BUILT_IN_JOBS = 2
+NUM_TEST_JOBS = 13
 NUM_BUILT_IN_PIPELINES = 0
 NUM_TEST_PIPELINES = 9
 

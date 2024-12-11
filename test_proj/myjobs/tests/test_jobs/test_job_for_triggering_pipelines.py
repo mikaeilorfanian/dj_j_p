@@ -2,7 +2,6 @@ import pytest
 from asgiref.sync import async_to_sync
 from django_async_job_pipelines.models import JobDBModel, PipelineDBModel
 from django_async_job_pipelines.test_utils import run_jobs
-
 from myjobs.jobs import JobWithInputs
 from myjobs.pipelines import (
     MultipleJobsPipeline,
@@ -12,6 +11,7 @@ from myjobs.pipelines import (
 
 
 @pytest.mark.run
+@pytest.mark.django_db(transaction=True)
 class TestTriggeringThePipeline:
     def test_pipeline_with_one_job(self, db):
         job = async_to_sync(OneJobPipelineWithInputs.trigger)(

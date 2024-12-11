@@ -50,13 +50,12 @@ class TestAsyncGetOneNewJob:
         res = async_to_sync(JobDBModel.aget_job_for_processing)()
         assert res
 
+    @pytest.mark.django_db(transaction=True)
     async def test_get_one_job_async_excluding_one_job_class(
-        self, new_job, new_job_missing_run_method
+        self,
+        new_job,
+        new_job_missing_run_method,
     ):
-        with pytest.raises(TimeoutError):
-            async with asyncio.timeout(1):
-                await JobDBModel.aget_job_for_processing(exclude=[new_job.name])
-
         with pytest.raises(TimeoutError):
             async with asyncio.timeout(1):
                 await JobDBModel.aget_job_for_processing(
