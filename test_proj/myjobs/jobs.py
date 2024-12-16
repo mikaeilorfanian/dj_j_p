@@ -208,3 +208,25 @@ class DeleteExistingJobs(BaseJob):
 class JobWithLongSleep(BaseJob):
     async def run(self):
         await asyncio.sleep(1_000)
+
+
+class JobWithInputsForMultipleNextJobs(BaseJob):
+    async def run(self):
+        self.outputs = self.Outputs(id=20)
+        self.next_job_inputs = [
+            JobWithInputs.Inputs(id=i) for i in range(self.inputs.jobs_to_make)
+        ]
+
+    @dataclass
+    class Inputs:
+        jobs_to_make: int
+
+        def asdict(self):
+            return {"jobs_to_make": self.jobs_to_make}
+
+    @dataclass
+    class Outputs:
+        id: int
+
+        def asdict(self):
+            return {"id": self.id}

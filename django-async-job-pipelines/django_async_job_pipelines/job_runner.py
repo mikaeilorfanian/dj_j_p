@@ -151,6 +151,7 @@ class Runner:
                     assert job.db_model
 
                     if isinstance(next_job_inputs, list):
+                        # makes the next jobs to be run in parallel
                         for next_j_inputs in next_job_inputs:
                             await JobDBModel.ainit_next_job(job.db_model, next_j_inputs)
                     else:

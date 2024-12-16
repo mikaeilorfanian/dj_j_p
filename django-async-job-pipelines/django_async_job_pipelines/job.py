@@ -97,14 +97,26 @@ class BaseJob:
 
         return asdict(self.outputs)
 
-    def next_job_inputs_asdict(self) -> dict:
+    def next_job_inputs_asdict(self) -> dict | list:
         if not self.next_job_inputs:
             return {}
 
-        if hasattr(self.next_job_inputs, "asdict"):
-            return self.next_job_inputs.asdict()
+        if isinstance(self.next_job_inputs, list) and len(self.next_job_inputs) == 0:
+            return []
 
-        return asdict(self.next_job_inputs)
+        if isinstance(self.next_job_inputs, list):
+            next_jobs_inputs = list()
+            for next_j_inputs in self.next_job_inputs:
+                if hasattr(next_j_inputs, "asdict"):
+                    next_jobs_inputs.append(next_j_inputs.asdict())
+                else:
+                    next_jobs_inputs.append(asdict(next_j_inputs))
+            return next_jobs_inputs
+        else:
+            if hasattr(self.next_job_inputs, "asdict"):
+                return self.next_job_inputs.asdict()
+
+            return asdict(self.next_job_inputs)
 
     async def run(self):
         raise NotImplementedError()
@@ -112,6 +124,24 @@ class BaseJob:
     @property
     def name(self) -> str:
         return type(self).__name__
+
+
+def create_new(job) -> "JobDBModel":
+    from .models import JobDBModel
+
+    if job.name not in job_registery.job_class_to_name_map:
+        raise ValueError(
+            f'Job with name "{job.name}" was not found. It should be a subclass \
+            of the "BaseJob" class and located in a `jobs.py` of a registered Django app.'
+        )
+
+    if hasattr(job, "Inputs") and not job.inputs:
+        raise ValueError(
+            "`inputs` parameter missing but `Inputs` class is given for this job."
+        )
+
+    j = JobDBModel.create_new_in_db(job)
+    return j
 
 
 async def acreate_new(job) -> "JobDBModel":

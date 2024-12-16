@@ -6,6 +6,7 @@ from .jobs import (
     DeleteExistingJobs,
     JobForTests,
     JobWithInputs,
+    JobWithInputsForMultipleNextJobs,
     JobWithSleep,
     SpawnConsumerProcesses,
 )
@@ -50,3 +51,7 @@ class TestPipelineWith10KJobs(BasePipeline):
         SpawnConsumerProcesses,
         AssertPipelieWorkedProperly,
     ]
+
+
+class PipelineWithOneJobProducingInputsForMultipleNextJobs(BasePipeline):
+    jobs = [JobWithInputsForMultipleNextJobs, JobWithInputs]

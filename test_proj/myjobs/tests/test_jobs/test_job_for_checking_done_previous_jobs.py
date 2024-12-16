@@ -2,7 +2,7 @@ import pytest
 from asgiref.sync import async_to_sync
 from django_async_job_pipelines.job import acreate_new
 from django_async_job_pipelines.jobs import CheckPreviousJobsFinished
-from django_async_job_pipelines.models import JobDBModel, PipelineDBModel
+from django_async_job_pipelines.models import JobDBModel
 from django_async_job_pipelines.test_utils import run_jobs
 from myjobs.jobs import JobProducingOutputs, JobWithInputsAndOutputs, JobWithLongSleep
 

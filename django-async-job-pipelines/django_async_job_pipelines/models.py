@@ -7,7 +7,7 @@ from asgiref.sync import sync_to_async
 from django.db import models, transaction
 from django.utils.module_loading import import_module
 
-from .job import BaseJob
+from .job import BaseJob, create_new
 from .registry import job_registery
 
 
@@ -215,7 +215,7 @@ class JobDBModel(models.Model):
         else:
             outputs = None
 
-        return klass.create(
+        return klass.create(  # we don't persist next job inputs in db
             inputs=inputs,
             outputs=outputs,
             status=job.status,
@@ -247,11 +247,27 @@ class JobDBModel(models.Model):
         await cls.objects.filter(pk=pk).aupdate(outputs=job_outputs)
 
     @classmethod
+    def create_new_in_db(
+        cls,
+        job,
+        previous_job: Optional["JobDBModel"] = None,
+    ) -> Self:
+        j = cls.objects.create(
+            name=type(job).__name__,
+            previous_job=previous_job,
+            status=cls.JobStatus.NEW,
+            inputs=job.inputs_asdict(),
+            outputs=job.outputs_asdict(),
+        )
+
+        return j
+
+    @classmethod
     async def acreate_new_in_db(
         cls,
         job,
         previous_job: Optional["JobDBModel"] = None,
-    ) -> "JobDBModel":
+    ) -> Self:
         j = await cls.objects.acreate(
             name=type(job).__name__,
             previous_job=previous_job,
@@ -304,7 +320,15 @@ class JobDBModel(models.Model):
             .first()
         )
         if not next_job:
-            return False
+            next_job = cls.objects.filter(previous_job=current_job).first()
+            if not next_job:
+                return False
+            next_job.pk = None
+            next_job.status = cls.JobStatus.NEW
+            if next_job_inputs:
+                next_job.inputs = next_job_inputs
+            next_job.save()
+            return True
         with transaction.atomic():
             next_job.status = cls.JobStatus.NEW
             if next_job_inputs:
