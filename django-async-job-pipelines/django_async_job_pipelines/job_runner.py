@@ -112,6 +112,7 @@ class Runner:
             )
 
     async def worker(self):
+        """This is where we run jobs, and start the next jobs."""
         _logger.info("Worker started")
         assert self.job_queue
 
@@ -144,14 +145,19 @@ class Runner:
 
             try:
                 _logger.info(f"Running job with pk {pk}")
-                await job.run()
+                await job.run()  # run the job
                 if job.previous_job:  # this means this job is part of a pipeline
                     next_job_inputs = job.next_job_inputs_asdict()
                     assert job.db_model
-                    await JobDBModel.ainit_next_job(
-                        job.db_model,
-                        next_job_inputs,
-                    )
+
+                    if isinstance(next_job_inputs, list):
+                        for next_j_inputs in next_job_inputs:
+                            await JobDBModel.ainit_next_job(job.db_model, next_j_inputs)
+                    else:
+                        await JobDBModel.ainit_next_job(
+                            job.db_model,
+                            next_job_inputs,
+                        )
                 output_serialized = job.outputs_asdict()
                 _logger.info(f"Successfully ran job with pk {pk}")
                 await JobDBModel.aupdate_in_progress_to_done_by_id(

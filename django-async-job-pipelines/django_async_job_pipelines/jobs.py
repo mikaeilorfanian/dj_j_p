@@ -1,5 +1,6 @@
+import asyncio
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 
 from asgiref.sync import sync_to_async
 from django.db import transaction
@@ -89,6 +90,47 @@ class StartPipeline(BaseJob):
             first_job_db_model.status = JobDBModel.JobStatus.NEW
             first_job_db_model.save()
 
-            # create "not ready" job
-            # create the pipeline-job row
-            # set job status to "new"
+
+class CheckPreviousJobsFinished(BaseJob):  # TODO add usage of this to README
+    @dataclass
+    class Inputs:
+        previous_jobs_ids: List[int]
+
+    @dataclass
+    class Outputs:
+        finished_jobs_outputs: List
+
+    async def run(self):
+        assert self.inputs
+        assert self.db_model
+
+        all_done: bool = False
+        previous_jobs_outputs: list = list()
+        already_done_jobs: set[int] = set()
+        while not all_done:
+            for job_id in self.inputs.previous_jobs_ids:
+
+                if job_id == self.db_model.pk:
+                    continue
+
+                if job_id in already_done_jobs:
+                    continue
+
+                try:
+                    job = await JobDBModel.aget_by_id(job_id)
+                except JobDBModel.DoesNotExist:
+                    raise ValueError(
+                        f"Previous job with given ID does not exist: {job_id}"
+                    )
+
+                if not job.is_done:
+                    await asyncio.sleep(1)
+                    break
+                elif job.is_done:
+                    # TODO Should we add the previous job's outputs to this wait job's outputs already?
+                    previous_jobs_outputs.append(job.outputs_asdict())
+                    already_done_jobs.add(job_id)
+
+            all_done = True
+
+        self.outputs = self.Outputs(finished_jobs_outputs=previous_jobs_outputs)

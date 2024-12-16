@@ -203,3 +203,8 @@ class DeleteExistingJobs(BaseJob):
             num_done_jobs=self.inputs.num_done_jobs,
             num_processes_to_spawn=self.inputs.num_processes_to_spawn,
         )
+
+
+class JobWithLongSleep(BaseJob):
+    async def run(self):
+        await asyncio.sleep(1_000)

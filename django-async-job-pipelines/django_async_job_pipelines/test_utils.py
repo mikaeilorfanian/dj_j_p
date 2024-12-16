@@ -12,5 +12,5 @@ def run_jobs(num_jobs_to_run: int = 1, timeout_seconds: int = 5, num_workers: in
         )
     except TimeoutError:
         raise RuntimeError(
-            f"Running job consumer timed out whicle processing {num_jobs_to_run} jobs with a {timeout_seconds} seconds timeout."
+            f"Running job consumer timed out while processing {num_jobs_to_run} jobs with a {timeout_seconds} seconds timeout."
         )

@@ -32,6 +32,12 @@ class BaseJob:
         self.next_job_inputs = next_job_inputs
 
     @property
+    def is_done(self) -> bool:
+        from django_async_job_pipelines.models import JobDBModel
+
+        return self.status == JobDBModel.JobStatus.DONE
+
+    @property
     def is_new(self) -> bool:
         from django_async_job_pipelines.models import JobDBModel
 
@@ -78,7 +84,6 @@ class BaseJob:
         return asdict(self.inputs)
 
     def outputs_asdict(self) -> dict:
-        # TODO rename this method to "deserialize"
         if not self.outputs:
             return {}
 
@@ -114,7 +119,8 @@ async def acreate_new(job) -> "JobDBModel":
 
     if job.name not in job_registery.job_class_to_name_map:
         raise ValueError(
-            f'Job with name "{job.name}" was not found. It should be a subclass of the "BaseJob" class and located in a `jobs.py` of a registered Django app.'
+            f'Job with name "{job.name}" was not found. It should be a subclass \
+            of the "BaseJob" class and located in a `jobs.py` of a registered Django app.'
         )
 
     if hasattr(job, "Inputs") and not job.inputs:
@@ -145,7 +151,8 @@ def create_not_ready(
 
     if job.name not in job_registery.job_class_to_name_map:
         raise ValueError(
-            f'Job with name "{job.name}" was not found. It should be a subclass of the "BaseJob" class and located in a `jobs.py` of a registered Django app.'
+            f'Job with name "{job.name}" was not found. It should be a subclass \
+            of the "BaseJob" class and located in a `jobs.py` of a registered Django app.'
         )
 
     return JobDBModel.create_not_ready_in_db(job, previous_job)

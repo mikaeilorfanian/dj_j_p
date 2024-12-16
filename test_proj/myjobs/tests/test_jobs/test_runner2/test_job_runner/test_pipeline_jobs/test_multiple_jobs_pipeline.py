@@ -22,7 +22,7 @@ class TestAJobFails:
         assert JobDBModel.new_jobs_count() == 0  # there are no jobs ready to process
         assert (
             JobDBModel.done_jobs_count() == 2
-        )  # first job and trigger job ran successfully
+        )  # trigger and first jobs ran successfully
         assert (
             JobDBModel.failed_jobs_count() == 1
         )  # second job failed because its inputs is missing

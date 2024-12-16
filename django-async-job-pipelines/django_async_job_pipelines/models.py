@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Self
 
 from asgiref.sync import sync_to_async
 from django.db import models, transaction
@@ -49,7 +49,7 @@ class JobDBModel(models.Model):
         db_table = "async_job"
 
     def __str__(self) -> str:
-        return f"{self.id}: {self.status}"
+        return f"{self.id}: {self.name}, {self.status}"
 
     @classmethod
     def get(cls, pk) -> "JobDBModel":
@@ -66,6 +66,10 @@ class JobDBModel(models.Model):
     @property
     def is_done(self) -> bool:
         return self.status == self.JobStatus.DONE
+
+    @property
+    def is_in_progress(self) -> bool:
+        return self.status == self.JobStatus.IN_PROGRESS
 
     @property
     def errored(self) -> bool:
@@ -185,6 +189,10 @@ class JobDBModel(models.Model):
         ]
 
     @classmethod
+    async def aget(cls, _id: int) -> Self:
+        return cls.objects.get(pk=_id)
+
+    @classmethod
     async def aget_by_id(cls, _id: int) -> BaseJob:
         job = await cls.objects.select_related("previous_job").aget(id=_id)
         module = import_module(job_registery.get_import_path_for_class_name(job.name))
@@ -269,7 +277,6 @@ class JobDBModel(models.Model):
             for j in jobs
         ]
         await cls.objects.abulk_create(to_create, batch_size=10_000)
-        # TODO do we want to chunk this `bulk_create`
 
     @classmethod
     def create_not_ready_in_db(
@@ -286,19 +293,24 @@ class JobDBModel(models.Model):
         return j
 
     @classmethod
-    async def ainit_next_job(
+    @sync_to_async
+    def ainit_next_job(
         cls, current_job: "JobDBModel", next_job_inputs: Optional[dict] = None
     ) -> bool:
         # TODO create index for look up by `previous_job`?
-        try:
-            next_job = await cls.objects.aget(previous_job=current_job)
+        next_job = (
+            cls.objects.select_for_update()
+            .filter(previous_job=current_job, status=cls.JobStatus.NOT_READY)
+            .first()
+        )
+        if not next_job:
+            return False
+        with transaction.atomic():
             next_job.status = cls.JobStatus.NEW
             if next_job_inputs:
                 next_job.inputs = next_job_inputs
-            await next_job.asave()
+            next_job.save()
             return True
-        except cls.DoesNotExist:
-            return False
 
 
 class PipelineJobsDBModel(models.Model):
