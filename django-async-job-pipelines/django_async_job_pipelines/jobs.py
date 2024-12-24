@@ -1,14 +1,17 @@
 import asyncio
-from dataclasses import dataclass
+import logging
+from dataclasses import asdict, dataclass, field
 from typing import List, Optional
 
 from asgiref.sync import sync_to_async
 from django.db import transaction
 from django.utils.module_loading import import_module
 
-from .job import BaseJob, acreate_new, create_not_ready
+from .job import BaseJob, create_not_ready
 from .models import JobDBModel, PipelineDBModel
 from .registry import pipeline_registery
+
+logger = logging.getLogger("django_async_job_pipelines")
 
 
 class StartPipeline(BaseJob):
@@ -91,10 +94,11 @@ class StartPipeline(BaseJob):
             first_job_db_model.save()
 
 
-class CheckPreviousJobsFinished(BaseJob):  # TODO add usage of this to README
+class RunMultipleJobs(BaseJob):  # TODO add usage of this to README
     @dataclass
     class Inputs:
-        previous_jobs_ids: List[int]
+        next_jobs_inputs: List[dict]
+        next_jobs_ids: Optional[List[int]] = field(default_factory=list)
 
     @dataclass
     class Outputs:
@@ -104,12 +108,24 @@ class CheckPreviousJobsFinished(BaseJob):  # TODO add usage of this to README
         assert self.inputs
         assert self.db_model
 
+        log_start = f"Multiple job runner {self.db_model.pk=}"
+
+        for inputs in asdict(self.inputs)["next_jobs_inputs"]:
+            job_db_model: JobDBModel | None = await JobDBModel.ainit_next_job(
+                self.db_model, inputs
+            )
+            logger.debug(
+                f"{log_start} Initialized next job {job_db_model.pk if job_db_model else None}"
+            )
+            if job_db_model:
+                self.inputs.next_jobs_ids.append(job_db_model.pk)
+
         all_done: bool = False
         previous_jobs_outputs: list = list()
         already_done_jobs: set[int] = set()
         while not all_done:
-            for job_id in self.inputs.previous_jobs_ids:
-
+            logger.debug(f"{log_start} waiting for all jobs to finish!")
+            for job_id in self.inputs.next_jobs_ids:
                 if job_id == self.db_model.pk:
                     continue
 
@@ -117,20 +133,29 @@ class CheckPreviousJobsFinished(BaseJob):  # TODO add usage of this to README
                     continue
 
                 try:
-                    job = await JobDBModel.aget_by_id(job_id)
+                    job: BaseJob = await JobDBModel.aget_by_id(job_id)
+                    logger.debug(f"{log_start} Got job: {job_id=}")
                 except JobDBModel.DoesNotExist:
                     raise ValueError(
-                        f"Previous job with given ID does not exist: {job_id}"
+                        f"Previous job with given ID does not exist: {job_id=}"
                     )
 
                 if not job.is_done:
+                    logger.debug(
+                        f"{log_start} Job not finished going to sleep: {job_id=}"
+                    )
                     await asyncio.sleep(1)
                     break
                 elif job.is_done:
                     # TODO Should we add the previous job's outputs to this wait job's outputs already?
+                    logger.debug(f"{log_start} Job is done: {job_id=}")
                     previous_jobs_outputs.append(job.outputs_asdict())
                     already_done_jobs.add(job_id)
-
-            all_done = True
+            else:
+                all_done = True
+                logger.debug(f"{log_start} All jobs done")
 
         self.outputs = self.Outputs(finished_jobs_outputs=previous_jobs_outputs)
+
+
+BUILT_IN_JOB_CLASSES = ["StartPipeline", "RunMultipleJobs"]

@@ -6,7 +6,13 @@ class JobRegistery:
     job_class_to_name_map: dict[str, str] = field(default_factory=dict)
 
     def add(self, class_name: str, app_name: str):
-        if class_name in self.job_class_to_name_map:
+
+        from django_async_job_pipelines.jobs import BUILT_IN_JOB_CLASSES
+
+        if (
+            class_name in self.job_class_to_name_map
+            and class_name not in BUILT_IN_JOB_CLASSES
+        ):
             help = "Job class names must be unique!"
             previous = f"{self.job_class_to_name_map[class_name]}.{class_name}"
             raise ValueError(

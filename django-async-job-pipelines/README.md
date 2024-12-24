@@ -270,6 +270,41 @@ The next job's inputs in a pipeline is set by setting `self.next_job_inputs`.
 
 Note that `CreateJobs.run` shows how you can create multiple next jobs.
 
+> [!Example] Runniung Multiple Instances of a Job Simultaneously
+This example shows a pipeline where once job produces multiple next jobs to be run in parallel:
+```python
+# in your `pipelines.py`
+class PipelineWithOneJobProducingInputsForMultipleNextJobs(BasePipeline):
+    jobs = [JobWithInputsForMultipleNextJobs, JobWithInputs]
+
+# in your `jobs.py`
+class JobWithInputs(BaseJob):
+    @dataclass
+    class Inputs:
+        id: int
+
+class JobWithInputsForMultipleNextJobs(BaseJob):
+    async def run(self):
+        self.outputs = self.Outputs(id=20)
+        self.next_job_inputs = [
+            JobWithInputs.Inputs(id=i) for i in range(self.inputs.jobs_to_make)
+        ]
+
+    @dataclass
+    class Inputs:
+        jobs_to_make: int
+
+        def asdict(self):
+            return {"jobs_to_make": self.jobs_to_make}
+
+    @dataclass
+    class Outputs:
+        id: int
+
+        def asdict(self):
+            return {"id": self.id}
+```
+
 ### Benchmarking
 TODO
 Useful for benchmarking. It's hard to know what number of workers is ideal for your scenario. That's why we have a built-in Django command that can create any number of jobs you want, run them, output the duration it took to run them, and assert that all have run.

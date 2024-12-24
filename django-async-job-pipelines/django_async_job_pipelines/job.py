@@ -125,6 +125,9 @@ class BaseJob:
     def name(self) -> str:
         return type(self).__name__
 
+    def __str__(self) -> str:
+        return f"{self.name}-{self.db_model}: {self.status}"
+
 
 def create_new(job) -> "JobDBModel":
     from .models import JobDBModel

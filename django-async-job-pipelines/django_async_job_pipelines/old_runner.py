@@ -1,23 +1,14 @@
 import asyncio
+import logging
+import traceback
 from datetime import datetime as dt
 from enum import Enum
-import logging
-import os
-import traceback
 from typing import Optional
 
 from asgiref.sync import sync_to_async
 from django.utils import timezone
+
 from django_async_job_pipelines.models import JobDBModel
-
-
-def logs_filename():
-    return f"{os.getgid()}_job_runner.log"
-
-
-logger = logging.getLogger(__name__)
-FORMAT = "%(asctime)s %(process)d %(filename)s:%(funcName)s:%(lineno)d %(message)s"
-logging.basicConfig(format=FORMAT, filename=logs_filename(), level=logging.INFO)
 
 
 class RunResult(Enum):

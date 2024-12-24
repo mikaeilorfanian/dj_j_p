@@ -1,3 +1,4 @@
+from django_async_job_pipelines.jobs import RunMultipleJobs
 from django_async_job_pipelines.pipeline import BasePipeline
 
 from .jobs import (
@@ -5,8 +6,11 @@ from .jobs import (
     CreateJobs,
     DeleteExistingJobs,
     JobForTests,
+    JobProducingOutputs,
     JobWithInputs,
-    JobWithInputsForMultipleNextJobs,
+    JobWithInputsForMultipleNextJobsNoWait,
+    JobWithInputsForMultipleNextJobsWithWait,
+    JobWithLongSleep,
     JobWithSleep,
     SpawnConsumerProcesses,
 )
@@ -54,4 +58,8 @@ class TestPipelineWith10KJobs(BasePipeline):
 
 
 class PipelineWithOneJobProducingInputsForMultipleNextJobs(BasePipeline):
-    jobs = [JobWithInputsForMultipleNextJobs, JobWithInputs]
+    jobs = [JobWithInputsForMultipleNextJobsNoWait, JobProducingOutputs]
+
+
+class PipelineWithMultipleNextJobs(BasePipeline):
+    jobs = [JobWithInputsForMultipleNextJobsWithWait, RunMultipleJobs, JobWithLongSleep]

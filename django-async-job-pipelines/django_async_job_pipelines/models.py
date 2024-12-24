@@ -7,17 +7,10 @@ from asgiref.sync import sync_to_async
 from django.db import models, transaction
 from django.utils.module_loading import import_module
 
-from .job import BaseJob, create_new
+from .job import BaseJob
 from .registry import job_registery
 
-
-def logs_filename():
-    return f"{os.getgid()}_job_runner.log"
-
-
-logger = logging.getLogger(__name__)
-FORMAT = "%(asctime)s %(process)d %(taskName)s %(filename)s:%(funcName)s:%(lineno)d %(message)s"
-logging.basicConfig(format=FORMAT, filename=logs_filename(), level=logging.DEBUG)
+logger = logging.getLogger("django_async_job_pipelines")
 
 
 class JobDBModel(models.Model):
@@ -86,6 +79,10 @@ class JobDBModel(models.Model):
     @classmethod
     def done_jobs_count(cls) -> int:
         return cls.objects.filter(status=cls.JobStatus.DONE).count()
+
+    @classmethod
+    def in_progress_jobs_count(cls) -> int:
+        return cls.objects.filter(status=cls.JobStatus.IN_PROGRESS).count()
 
     @classmethod
     def failed_jobs_count(cls) -> int:
@@ -158,7 +155,7 @@ class JobDBModel(models.Model):
                 #         wait_seconds_between_queries
                 #     )  # TODO NEXT make this a config, benchmark with different values
             else:
-                logger.info(f"Fetching from db excluding {exclude} jobs")
+                logger.debug(f"Fetching from db excluding {exclude} jobs")
                 async for pk in (
                     cls.objects.filter(status=cls.JobStatus.NEW)
                     .exclude(name__in=exclude)
@@ -312,7 +309,7 @@ class JobDBModel(models.Model):
     @sync_to_async
     def ainit_next_job(
         cls, current_job: "JobDBModel", next_job_inputs: Optional[dict] = None
-    ) -> bool:
+    ) -> Self | None:
         # TODO create index for look up by `previous_job`?
         next_job = (
             cls.objects.select_for_update()
@@ -322,19 +319,19 @@ class JobDBModel(models.Model):
         if not next_job:
             next_job = cls.objects.filter(previous_job=current_job).first()
             if not next_job:
-                return False
+                return
             next_job.pk = None
             next_job.status = cls.JobStatus.NEW
             if next_job_inputs:
                 next_job.inputs = next_job_inputs
             next_job.save()
-            return True
+            return next_job
         with transaction.atomic():
             next_job.status = cls.JobStatus.NEW
             if next_job_inputs:
                 next_job.inputs = next_job_inputs
             next_job.save()
-            return True
+            return next_job
 
 
 class PipelineJobsDBModel(models.Model):
