@@ -98,6 +98,7 @@ To start the bakcground jobs runner:
 python manage.py consume_jobs_async
 ```
 Use `python manage.py consume_jobs_async --help` to see how to customize the job runner.
+You can controll concurrency - how many jobs run concurrently - by setting the number of workers when invoking this command.
 By default, the job runner runs forever.
 
 ## Testing Utils

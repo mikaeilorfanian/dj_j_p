@@ -105,12 +105,12 @@ class RunMultipleJobs(BaseJob):  # TODO add usage of this to README
         finished_jobs_outputs: List
 
     async def run(self):
+        log_start = f"Multiple job runner {self.db_model.pk=}:"
+        logger.debug(f"{log_start} started running")
         assert self.inputs
         assert self.db_model
 
-        log_start = f"Multiple job runner {self.db_model.pk=}"
-
-        for inputs in asdict(self.inputs)["next_jobs_inputs"]:
+        for inputs in asdict(self.inputs)["next_jobs_inputs"][:5]:
             job_db_model: JobDBModel | None = await JobDBModel.ainit_next_job(
                 self.db_model, inputs
             )
@@ -123,6 +123,7 @@ class RunMultipleJobs(BaseJob):  # TODO add usage of this to README
         all_done: bool = False
         previous_jobs_outputs: list = list()
         already_done_jobs: set[int] = set()
+        # TODO start here add a try catch for timeouts here
         while not all_done:
             logger.debug(f"{log_start} waiting for all jobs to finish!")
             for job_id in self.inputs.next_jobs_ids:
@@ -142,13 +143,13 @@ class RunMultipleJobs(BaseJob):  # TODO add usage of this to README
 
                 if not job.is_done:
                     logger.debug(
-                        f"{log_start} Job not finished going to sleep: {job_id=}"
+                        f"{log_start} Job not finished going to sleep: {job.db_model.pk=}"
                     )
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(2)
                     break
                 elif job.is_done:
                     # TODO Should we add the previous job's outputs to this wait job's outputs already?
-                    logger.debug(f"{log_start} Job is done: {job_id=}")
+                    logger.debug(f"{log_start} Job is done: {job.db_model.pk=}")
                     previous_jobs_outputs.append(job.outputs_asdict())
                     already_done_jobs.add(job_id)
             else:
@@ -156,6 +157,7 @@ class RunMultipleJobs(BaseJob):  # TODO add usage of this to README
                 logger.debug(f"{log_start} All jobs done")
 
         self.outputs = self.Outputs(finished_jobs_outputs=previous_jobs_outputs)
+        self.next_job_inputs = None
 
 
 BUILT_IN_JOB_CLASSES = ["StartPipeline", "RunMultipleJobs"]

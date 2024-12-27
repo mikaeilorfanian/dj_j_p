@@ -42,7 +42,7 @@ class JobDBModel(models.Model):
         db_table = "async_job"
 
     def __str__(self) -> str:
-        return f"{self.id}: {self.name}, {self.status}"
+        return f"{self.pk}: {self.name}, {self.status}"
 
     @classmethod
     def get(cls, pk) -> "JobDBModel":
@@ -94,6 +94,13 @@ class JobDBModel(models.Model):
             status=cls.JobStatus.ERROR, error=error_msg
         )
 
+    async def amark_as_new(self):
+        await JobDBModel.objects.filter(pk=self.pk).aupdate(status=self.JobStatus.NEW)
+
+    @classmethod
+    async def amark_as_new_by_pk(cls, pk: int):
+        await JobDBModel.objects.filter(pk=pk).aupdate(status=cls.JobStatus.NEW)
+
     @classmethod
     def get_new_jobs_for_processing(
         cls,
@@ -108,13 +115,14 @@ class JobDBModel(models.Model):
         return cls.objects.filter(status=cls.JobStatus.NOT_READY).all()
 
     @classmethod
-    def get_job_for_processing_and_mark_as_in_progress(cls) -> Optional["JobDBModel"]:
-        row = cls.objects.filter(status=cls.JobStatus.NEW).first()
+    def get_job_for_processing_and_mark_as_in_progress(cls) -> Self | None:
+        row = cls.objects.select_for_update().filter(status=cls.JobStatus.NEW).first()
         if not row:
             return
         with transaction.atomic():
             row.status = cls.JobStatus.IN_PROGRESS
             row.save()
+        logger.debug(f"Updated to IN_PROGRESS: {row.pk}")
         return row
 
     @classmethod
@@ -132,45 +140,61 @@ class JobDBModel(models.Model):
             found_new: bool = False
             pk: tuple[int]
             if not exclude:
-                job = await sync_to_async(
-                    cls.get_job_for_processing_and_mark_as_in_progress
-                )()
-                if not job:
-                    await asyncio.sleep(wait_seconds_between_queries)
-                else:
-                    return job.pk
-                # async for pk in cls.objects.filter(
-                #     status=cls.JobStatus.NEW
-                # ).values_list("pk"):
-                #     found_new = True
-                #     res = await cls.objects.filter(
-                #         pk=pk[0], status=cls.JobStatus.NEW
-                #     ).aupdate(status=cls.JobStatus.IN_PROGRESS)
-                #     if not res:
-                #         continue
-                #     else:
-                #         return pk[0]
-                # if not found_new:
-                #     await asyncio.sleep(
-                #         wait_seconds_between_queries
-                #     )  # TODO NEXT make this a config, benchmark with different values
+                job: JobDBModel | None = None
+                try:
+                    job = await sync_to_async(
+                        cls.get_job_for_processing_and_mark_as_in_progress
+                    )()
+                    if job:
+                        logger.debug(f"Got NEW job from db: {job.pk}")
+                    if not job:
+                        logger.debug(
+                            f"Could not fetch any new jobs from db, going to sleep {wait_seconds_between_queries}"
+                        )
+                        await asyncio.sleep(wait_seconds_between_queries)
+                    else:
+                        return job.pk
+                except (asyncio.CancelledError, TimeoutError) as e:
+                    if job:
+                        logger.debug(f"Got Cancelled, so marking job as NEW: {job.pk}")
+                        await job.amark_as_new()
+                    raise e
             else:
                 logger.debug(f"Fetching from db excluding {exclude} jobs")
-                async for pk in (
-                    cls.objects.filter(status=cls.JobStatus.NEW)
-                    .exclude(name__in=exclude)
-                    .values_list("pk")
-                ):
-                    found_new = True
-                    res = (
-                        await cls.objects.filter(pk=pk[0], status=cls.JobStatus.NEW)
+                try:
+                    pk: list[int] = list()
+                    res: bool | None = None
+                    async for pk in (
+                        cls.objects.filter(status=cls.JobStatus.NEW)
                         .exclude(name__in=exclude)
-                        .aupdate(status=cls.JobStatus.IN_PROGRESS)
+                        .values_list("pk")
+                    ):
+                        found_new = True
+                        res = (
+                            await cls.objects.filter(pk=pk[0], status=cls.JobStatus.NEW)
+                            .exclude(name__in=exclude)
+                            .aupdate(status=cls.JobStatus.IN_PROGRESS)
+                        )
+                        if not res:
+                            found_new = False
+                            continue
+                        else:
+                            logger.debug(
+                                f"Updated with exclude filter to IN_PROGRESS: {pk[0]}"
+                            )
+                            return pk[0]
+                    logger.debug(
+                        f"Could not fetch any new jobs from db, going to sleep {wait_seconds_between_queries}"
                     )
-                    if not res:
-                        continue
-                    else:
-                        return pk[0]
+                    await asyncio.sleep(wait_seconds_between_queries)
+                except (asyncio.CancelledError, TimeoutError) as e:
+                    assert pk
+                    assert res
+                    if res and len(pk) > 0:
+                        logger.debug(f"Got Cancelled, so marking job as NEW: {pk[0]}")
+                        await JobDBModel.amark_as_new_by_pk(pk[0])
+                        raise e
+
                 if not found_new:
                     await asyncio.sleep(wait_seconds_between_queries)
 
@@ -222,9 +246,11 @@ class JobDBModel(models.Model):
 
     @classmethod
     async def aupdate_new_to_in_progress_by_id(cls, pk: int) -> int:
-        return await cls.objects.filter(pk=pk, status=cls.JobStatus.NEW).aupdate(
+        res = await cls.objects.filter(pk=pk, status=cls.JobStatus.NEW).aupdate(
             status=cls.JobStatus.IN_PROGRESS
         )
+        logger.debug(f"Updated to IN_PROGRESS: {pk}")
+        return res
 
     @classmethod
     async def aupdate_in_progress_to_done_by_id(
