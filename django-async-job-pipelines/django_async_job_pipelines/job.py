@@ -147,7 +147,7 @@ def create_new(job) -> "JobDBModel":
     return j
 
 
-async def acreate_new(job) -> "JobDBModel":
+async def acreate_new(job, previous_job: Optional["JobDBModel"] = None) -> "JobDBModel":
     from .models import JobDBModel
 
     if job.name not in job_registery.job_class_to_name_map:
@@ -161,7 +161,7 @@ async def acreate_new(job) -> "JobDBModel":
             "`inputs` parameter missing but `Inputs` class is given for this job."
         )
 
-    j = await JobDBModel.acreate_new_in_db(job)
+    j = await JobDBModel.acreate_new_in_db(job, previous_job)
     return j
 
 

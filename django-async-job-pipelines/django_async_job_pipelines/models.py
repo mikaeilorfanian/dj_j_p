@@ -40,6 +40,7 @@ class JobDBModel(models.Model):
 
     class Meta:
         db_table = "async_job"
+        indexes = [models.Index(fields=['status']), models.Index(fields=['name'])]
 
     def __str__(self) -> str:
         return f"{self.pk}: {self.name}, {self.status}"
@@ -116,10 +117,11 @@ class JobDBModel(models.Model):
 
     @classmethod
     def get_job_for_processing_and_mark_as_in_progress(cls) -> Self | None:
-        row = cls.objects.select_for_update().filter(status=cls.JobStatus.NEW).first()
-        if not row:
-            return
+        query = cls.objects.select_for_update().filter(status=cls.JobStatus.NEW)
         with transaction.atomic():
+            row = query.first()
+            if not row:
+                return
             row.status = cls.JobStatus.IN_PROGRESS
             row.save()
         logger.debug(f"Updated to IN_PROGRESS: {row.pk}")
@@ -336,23 +338,22 @@ class JobDBModel(models.Model):
     def ainit_next_job(
         cls, current_job: "JobDBModel", next_job_inputs: Optional[dict] = None
     ) -> Self | None:
-        # TODO create index for look up by `previous_job`?
-        next_job = (
+        query = (
             cls.objects.select_for_update()
             .filter(previous_job=current_job, status=cls.JobStatus.NOT_READY)
-            .first()
         )
-        if not next_job:
-            next_job = cls.objects.filter(previous_job=current_job).first()
-            if not next_job:
-                return
-            next_job.pk = None
-            next_job.status = cls.JobStatus.NEW
-            if next_job_inputs:
-                next_job.inputs = next_job_inputs
-            next_job.save()
-            return next_job
         with transaction.atomic():
+            next_job = query.first()
+            if not next_job:
+                next_job = cls.objects.filter(previous_job=current_job).first()
+                if not next_job:
+                    return
+                next_job.pk = None
+                next_job.status = cls.JobStatus.NEW
+                if next_job_inputs:
+                    next_job.inputs = next_job_inputs
+                next_job.save()
+                return next_job
             next_job.status = cls.JobStatus.NEW
             if next_job_inputs:
                 next_job.inputs = next_job_inputs

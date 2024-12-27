@@ -1,34 +1,31 @@
-import asyncio
-
 import pytest
 from asgiref.sync import async_to_sync
-from django_async_job_pipelines.job import abulk_create_new, acreate_new
 from django_async_job_pipelines.job_runner import run_num_jobs
 from django_async_job_pipelines.models import JobDBModel
-
-from myjobs.jobs import JobForTests, JobMissingRunMethod
 
 
 class TestExludingJobs:
     def test_one_job_to_exclude_exists(self, new_job):
         assert JobDBModel.new_jobs_count() == 1
 
-        async_to_sync(run_num_jobs)(
-            max_num_workers=1,
-            timeout=3,
-            skip_jobs=[new_job.name],
-        )
+        with pytest.raises(TimeoutError):
+            async_to_sync(run_num_jobs)(
+                max_num_workers=1,
+                timeout=3,
+                skip_jobs=[new_job.name],
+            )
 
         assert JobDBModel.new_jobs_count() == 1
 
     def test_job_to_exclude_doesnt_exists(self, new_job):
         assert JobDBModel.new_jobs_count() == 1
 
-        async_to_sync(run_num_jobs)(
-            max_num_workers=1,
-            timeout=3,
-            skip_jobs=["random-name"],
-        )
+        with pytest.raises(TimeoutError):
+            async_to_sync(run_num_jobs)(
+                max_num_workers=1,
+                timeout=3,
+                skip_jobs=["random-name"],
+            )
 
         assert JobDBModel.new_jobs_count() == 0
 
@@ -39,11 +36,12 @@ class TestExludingJobs:
 
         name_to_exclude = new_job.name
 
-        async_to_sync(run_num_jobs)(
-            max_num_workers=1,
-            timeout=3,
-            skip_jobs=[name_to_exclude],
-        )
+        with pytest.raises(TimeoutError):
+            async_to_sync(run_num_jobs)(
+                max_num_workers=1,
+                timeout=3,
+                skip_jobs=[name_to_exclude],
+            )
 
         assert JobDBModel.new_jobs_count() == 1
         assert (

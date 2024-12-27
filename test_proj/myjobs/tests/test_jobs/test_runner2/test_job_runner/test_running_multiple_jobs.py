@@ -1,11 +1,8 @@
-import asyncio
-
 import pytest
-from asgiref.sync import async_to_sync, sync_to_async
-from django_async_job_pipelines.job import abulk_create_new, acreate_new
+from asgiref.sync import async_to_sync
+from django_async_job_pipelines.job import abulk_create_new
 from django_async_job_pipelines.models import JobDBModel
 from django_async_job_pipelines.test_utils import run_jobs
-
 from myjobs.jobs import JobForTests, JobMissingRunMethod
 
 
@@ -14,7 +11,8 @@ class TestMoreThanOneJob:
         JobDBModel.objects.all().delete()
         assert JobDBModel.new_jobs_count() == 0
 
-        run_jobs(1, 1)
+        with pytest.raises(RuntimeError):
+            run_jobs(1, 1)
 
         assert JobDBModel.done_jobs_count() == 0
         assert JobDBModel.failed_jobs_count() == 0
@@ -24,7 +22,8 @@ class TestMoreThanOneJob:
 
         initial_done_jobs_count = JobDBModel.done_jobs_count()
 
-        run_jobs(2, num_workers=2)
+        with pytest.raises(RuntimeError):
+            run_jobs(2, num_workers=2)
 
         assert JobDBModel.new_jobs_count() == 0
         assert JobDBModel.done_jobs_count() == initial_done_jobs_count + 2
@@ -36,7 +35,8 @@ class TestMoreThanOneJob:
         async_to_sync(abulk_create_new)([JobForTests() for _ in range(total_num_jobs)])
         assert JobDBModel.new_jobs_count() == total_num_jobs
 
-        run_jobs(num_jobs_to_consume, num_workers=num_jobs_to_consume)
+        with pytest.raises(RuntimeError):
+            run_jobs(num_jobs_to_consume, num_workers=num_jobs_to_consume)
 
         assert JobDBModel.new_jobs_count() == total_num_jobs - num_jobs_to_consume
         assert JobDBModel.done_jobs_count() == num_jobs_to_consume
@@ -54,7 +54,8 @@ class TestMoreThanOneJob:
         )
         assert JobDBModel.new_jobs_count() == total
 
-        run_jobs(total, num_workers=total)
+        with pytest.raises(RuntimeError):
+            run_jobs(total, num_workers=total)
 
         assert JobDBModel.new_jobs_count() == 0
         assert JobDBModel.done_jobs_count() == num_successful_jobs
@@ -69,7 +70,8 @@ class TestMoreThanOneJob:
         )
         assert JobDBModel.new_jobs_count() == total_jobs
 
-        run_jobs(num_to_consume, num_workers=num_to_consume)
+        with pytest.raises(RuntimeError):
+            run_jobs(num_to_consume, num_workers=num_to_consume)
 
         assert JobDBModel.new_jobs_count() == total_jobs - num_to_consume
         assert JobDBModel.failed_jobs_count() == num_to_consume

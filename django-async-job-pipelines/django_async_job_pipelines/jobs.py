@@ -102,7 +102,7 @@ class RunMultipleJobs(BaseJob):  # TODO add usage of this to README
 
     @dataclass
     class Outputs:
-        finished_jobs_outputs: List
+        already_created_jobs: List
 
     async def run(self):
         log_start = f"Multiple job runner {self.db_model.pk=}:"
@@ -110,7 +110,7 @@ class RunMultipleJobs(BaseJob):  # TODO add usage of this to README
         assert self.inputs
         assert self.db_model
 
-        for inputs in asdict(self.inputs)["next_jobs_inputs"][:5]:
+        for inputs in asdict(self.inputs)["next_jobs_inputs"]:
             job_db_model: JobDBModel | None = await JobDBModel.ainit_next_job(
                 self.db_model, inputs
             )
@@ -156,7 +156,6 @@ class RunMultipleJobs(BaseJob):  # TODO add usage of this to README
                 all_done = True
                 logger.debug(f"{log_start} All jobs done")
 
-        self.outputs = self.Outputs(finished_jobs_outputs=previous_jobs_outputs)
         self.next_job_inputs = None
 
 

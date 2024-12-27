@@ -61,31 +61,23 @@ class Runner:
                 logger.debug("Going to get job for enqueueing")
 
                 pk: int | None = None
-                try:
-                    async with asyncio.timeout(self.get_job_to_process_timeout):
-                        if self.exclude_jobs:
-                            task = asyncio.create_task(
-                                JobDBModel.aget_job_for_processing(
-                                    exclude=self.exclude_jobs,
-                                    wait_seconds_between_queries=self.wait_seconds_between_queries,
-                                )
-                            )
-                            await task
-                            pk = task.result()
-                        else:
-                            task = asyncio.create_task(
-                                JobDBModel.aget_job_for_processing(
-                                    wait_seconds_between_queries=self.wait_seconds_between_queries
-                                )
-                            )
-                            await task
-                            pk = task.result()
-                except TimeoutError:
-                    sleep_between_fetching_jobs_for_processing = 1
-                    logger.debug(
-                        f"Getting job for processing timed out, so going to sleep {sleep_between_fetching_jobs_for_processing}"
+                if self.exclude_jobs:
+                    task = asyncio.create_task(
+                        JobDBModel.aget_job_for_processing(
+                            exclude=self.exclude_jobs,
+                            wait_seconds_between_queries=self.wait_seconds_between_queries,
+                        )
                     )
-                    await asyncio.sleep(sleep_between_fetching_jobs_for_processing)
+                    await task
+                    pk = task.result()
+                else:
+                    task = asyncio.create_task(
+                        JobDBModel.aget_job_for_processing(
+                            wait_seconds_between_queries=self.wait_seconds_between_queries
+                        )
+                    )
+                    await task
+                    pk = task.result()
 
                 if not pk:
                     continue
@@ -98,7 +90,7 @@ class Runner:
                     f"Added job with pk {pk} to job queue, total jobs enqueued: {self.total_jobs_enqueued}"
                 )
             except asyncio.CancelledError as e:
-                task = asyncio.create_task(self.cleanup_jobs(pk))
+                task = asyncio.create_task(self.cleanup_one_job(pk))
                 await asyncio.shield(task)
                 raise e
 
@@ -109,8 +101,8 @@ class Runner:
         assert self.job_queue
 
         try:
-            pk: int | None = None
             while True:
+                pk: int | None = None
                 if self.num_jobs_to_run:
                     if self.total_jobs_processed == self.num_jobs_to_run:
                         logger.debug(
@@ -118,18 +110,8 @@ class Runner:
                         )
                         return
 
-                logger.debug(f"{worker_id_msg} Waiting to get a job")
-                try:
-                    async with asyncio.timeout(self.get_job_from_queue_timeout):
-                        pk = await self.job_queue.get()
-                except TimeoutError:
-                    sleep_between_waiting_to_get_job = 1
-                    logger.debug(
-                        f"{worker_id_msg} Timeout getting job from job queue, going to sleep {sleep_between_waiting_to_get_job}"
-                    )
-                    await asyncio.sleep(sleep_between_waiting_to_get_job)
-                    continue
-
+                logger.debug(f"{worker_id_msg} Waiting to get a job from job queue")
+                pk = await self.job_queue.get()
                 logger.debug(f"{worker_id_msg} Got job from job queue to process: {pk}")
 
                 try:
@@ -198,17 +180,18 @@ class Runner:
                     self.job_queue.task_done()
                     self.total_jobs_processed += 1
         except (asyncio.CancelledError, TimeoutError, KeyboardInterrupt) as e:
-            logger.debug(f"Got Cancelled, returning all jobs to NEW")
-            task = asyncio.create_task(self.cleanup_jobs(pk))
+            logger.debug(f"Got Cancelled, returning job to NEW: {pk}")
+            task = asyncio.create_task(self.cleanup_one_job(pk))
             await asyncio.shield(task)
             raise e
 
-    async def cleanup_jobs(self, pk: int | None = None):
+    async def cleanup_one_job(self, pk: int):
+        logger.debug(f"Returning job to NEW: {pk}")
+        await JobDBModel.amark_as_new_by_pk(pk)
+        logger.debug(f"Returned job to NEW: {pk}")
+
+    async def cleanup_jobs(self):
         logger.debug(f"Q size: {self.job_queue.qsize()}")
-        if pk:
-            logger.debug(f"Returning job to NEW: {pk}")
-            await JobDBModel.amark_as_new_by_pk(pk)
-            logger.debug(f"Returned job to NEW: {pk}")
         while self.job_queue.qsize() > 0:
             pk = await self.job_queue.get()
             await JobDBModel.amark_as_new_by_pk(pk)
@@ -227,10 +210,13 @@ class Runner:
                         task = asyncio.create_task(self.worker(worker_id))
                         logger.debug("Scheduled the creation of a worker")
                         tasks.append(task)
-                    await asyncio.gather(*tasks)
-            except TimeoutError:
+                    await asyncio.gather(*tasks, return_exceptions=True)
+            except (asyncio.CancelledError, TimeoutError, KeyboardInterrupt):
                 logger.debug(f"Timeout reached: {self.timeout_seconds} seconds!")
-                return
+                task = asyncio.create_task(self.cleanup_jobs())
+                await asyncio.shield(task)
+                raise
+
         else:
             tasks = []
             tasks.append(asyncio.create_task(self.add_jobs_to_queue()))

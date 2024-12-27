@@ -273,6 +273,9 @@ Note that `CreateJobs.run` shows how you can create multiple next jobs.
 
 > [!Example] Runniung Multiple Instances of a Job Simultaneously
 This example shows a pipeline where once job produces multiple next jobs to be run in parallel:
+# TODO show usage of multiple job runner
+Note that the multiple job runner recreates jobs it's already created if it stops mid-way and gets restarted again.
+So, in your jobs you should make sure you don't process duplicate jobs.
 ```python
 # in your `pipelines.py`
 class PipelineWithOneJobProducingInputsForMultipleNextJobs(BasePipeline):
